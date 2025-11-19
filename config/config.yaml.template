@@ -1,0 +1,25 @@
+# Mist Infrastructure Manager Configuration Template
+# Copy this file to config.yaml and fill in your actual values
+
+mist:
+  # Your Juniper Mist API token
+  # Get this from: https://manage.mist.com/admin/?org_id=<your-org-id>#!organization/apitoken
+  api_token: "YOUR_API_TOKEN_HERE"
+
+# Optional: Configure SLE thresholds (defaults are used if not specified)
+sle_thresholds:
+  successful_connect: 95.0  # %
+  time_to_connect: 5.0      # seconds
+  throughput: 80.0          # % of expected
+  capacity: 85.0            # % utilization
+  roaming: 98.0             # % successful
+
+# Optional: Monitoring configuration
+monitoring:
+  # How often to run monitoring (for scheduled jobs)
+  interval_minutes: 15
+  
+  # Enable/disable specific monitoring features
+  enable_sle_monitoring: true
+  enable_insights_analysis: true
+  enable_alarm_monitoring: true
