@@ -16,7 +16,8 @@ sle_thresholds:
 
 # Optional: Monitoring configuration
 monitoring:
-  # How often to run monitoring (for scheduled jobs)
+  # How often to run monitoring in daemon mode (in minutes)
+  # Used when running with --daemon flag
   interval_minutes: 15
   
   # Enable/disable specific monitoring features

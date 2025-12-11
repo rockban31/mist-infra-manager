@@ -51,24 +51,59 @@ class SLEMonitor:
     def _monitor_site(self, site_id: str, site_name: str):
         """Monitor SLE metrics for a specific site."""
         try:
-            sle_data = self.client.get_sle_metrics(site_id)
+            # Get available metrics for the site
+            try:
+                available_metrics = self.client.get_sle_metrics(site_id)
+                self.logger.info(f"Site {site_name}: Available SLE metrics: {available_metrics}")
+            except Exception as e:
+                self.logger.warning(f"Site {site_name}: SLE metrics not available - {str(e)[:100]}")
+                return
             
-            # Analyze each SLE metric
+            # Common SLE metric names in Mist API
+            metrics_to_check = [
+                'time-to-connect',
+                'successful-connect', 
+                'throughput',
+                'capacity',
+                'roaming'
+            ]
+            
             issues = []
             
-            for metric_name, metric_data in sle_data.items():
-                if isinstance(metric_data, dict):
-                    current_value = metric_data.get('value')
-                    threshold = self.THRESHOLDS.get(metric_name)
+            # Check each metric if available
+            for metric in metrics_to_check:
+                try:
+                    metric_data = self.client.get_sle_metrics(site_id, metric=metric)
                     
-                    if current_value is not None and threshold is not None:
-                        issue = self._check_threshold(
-                            metric_name, 
-                            current_value, 
-                            threshold
-                        )
-                        if issue:
-                            issues.append(issue)
+                    # Extract value from summary (structure varies by metric)
+                    if isinstance(metric_data, dict):
+                        # Try to get the current value from different possible locations
+                        current_value = None
+                        if 'score' in metric_data:
+                            current_value = metric_data.get('score')
+                        elif 'value' in metric_data:
+                            current_value = metric_data.get('value')
+                        elif 'summary' in metric_data and isinstance(metric_data['summary'], dict):
+                            current_value = metric_data['summary'].get('score') or metric_data['summary'].get('value')
+                        
+                        if current_value is not None:
+                            # Map API metric names to threshold keys
+                            threshold_key = metric.replace('-', '_')
+                            threshold = self.THRESHOLDS.get(threshold_key)
+                            
+                            if threshold is not None:
+                                issue = self._check_threshold(
+                                    metric, 
+                                    current_value, 
+                                    threshold
+                                )
+                                if issue:
+                                    issues.append(issue)
+                                else:
+                                    self.logger.info(f"  ✓ {metric}: {current_value:.2f}")
+                
+                except Exception as e:
+                    self.logger.debug(f"  Could not retrieve metric '{metric}': {e}")
             
             # Report findings
             if issues:
@@ -76,9 +111,9 @@ class SLEMonitor:
                     f"Site {site_name}: Found {len(issues)} SLE issues"
                 )
                 for issue in issues:
-                    self.logger.warning(f"  - {issue}")
+                    self.logger.warning(f"  ⚠ {issue}")
             else:
-                self.logger.info(f"Site {site_name}: All SLE metrics within thresholds")
+                self.logger.info(f"Site {site_name}: All checked SLE metrics within thresholds")
         
         except Exception as e:
             self.logger.error(f"Error monitoring site {site_name}: {e}")

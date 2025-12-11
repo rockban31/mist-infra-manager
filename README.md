@@ -83,6 +83,22 @@ Generate reports:
 python src/main.py --mode report
 ```
 
+### Daemon Mode (Continuous Monitoring)
+
+Run continuously with built-in scheduling:
+```bash
+# Use interval from config file (default: 15 minutes)
+python src/main.py --daemon
+
+# Override interval via command line (e.g., every 5 minutes)
+python src/main.py --daemon --interval 5
+
+# Combine with other options
+python src/main.py --daemon --mode monitor --verbose
+```
+
+The daemon runs immediately on startup, then repeats at the configured interval. Press `Ctrl+C` to stop gracefully.
+
 ### Advanced Options
 
 Enable verbose logging:
@@ -143,9 +159,20 @@ The application generates:
 - Log file (`mist_infra_manager.log`) with detailed information
 - Summary reports with actionable recommendations
 
-## Scheduling (Optional)
+## Scheduling
 
-To run the tool on a schedule, you can use:
+### Built-in Daemon Mode (Recommended)
+
+The simplest approach is to use the built-in daemon mode:
+```bash
+python src/main.py --daemon --interval 15
+```
+
+This keeps the tool running continuously with the specified interval.
+
+### External Scheduling (Alternative)
+
+If you prefer external scheduling:
 
 **Windows Task Scheduler**:
 1. Create a new task

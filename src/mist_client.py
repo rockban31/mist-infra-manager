@@ -6,6 +6,7 @@ Handles authentication and API requests to Juniper Mist platform
 import logging
 import requests
 import yaml
+import time
 from typing import Dict, List, Optional
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from pathlib import Path
 class MistAPIClient:
     """Client for interacting with Juniper Mist API."""
     
-    BASE_URL = "https://api.mist.com/api/v1"
+    BASE_URL = "https://api.eu.mist.com/api/v1"
     
     def __init__(self, config_path: str = None, api_token: str = None):
         """
@@ -116,22 +117,37 @@ class MistAPIClient:
             self.logger.error(f"Failed to get devices: {e}")
             raise
     
-    def get_sle_metrics(self, site_id: str, metric: str = None) -> Dict:
+    def get_sle_metrics(self, site_id: str, metric: str = None, hours: int = 24) -> Dict:
         """
         Get SLE (Service Level Expectation) metrics for a site.
         
         Args:
             site_id: Site ID
-            metric: Optional specific metric to retrieve
+            metric: Optional specific metric to retrieve (e.g., 'time-to-connect', 'throughput', 'capacity')
+            hours: Number of hours to look back (default: 24)
         """
         try:
-            url = f"{self.BASE_URL}/sites/{site_id}/sle"
-            if metric:
-                url += f"/{metric}"
+            # Calculate timestamps
+            end_time = int(time.time())
+            start_time = end_time - (hours * 3600)
             
-            response = self.session.get(url)
+            # First, get list of available metrics
+            metrics_url = f"{self.BASE_URL}/sites/{site_id}/sle/site/{site_id}/metrics"
+            response = self.session.get(metrics_url)
             response.raise_for_status()
-            return response.json()
+            available_metrics = response.json()
+            
+            # If specific metric requested, get its summary
+            if metric:
+                summary_url = f"{self.BASE_URL}/sites/{site_id}/sle/site/{site_id}/metric/{metric}/summary"
+                params = {'start': start_time, 'end': end_time}
+                response = self.session.get(summary_url, params=params)
+                response.raise_for_status()
+                return response.json()
+            
+            # Otherwise, return available metrics
+            return available_metrics
+            
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Failed to get SLE metrics: {e}")
             raise
