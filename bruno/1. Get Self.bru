@@ -1,0 +1,42 @@
+meta {
+  name: Get Self
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/self
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Token {{api_token}}
+  Content-Type: application/json
+}
+
+docs {
+  # Get Self (User Info)
+  
+  Get current user information and organization privileges.
+  This is the first API call to retrieve your organization ID.
+  
+  **Response includes:**
+  - User email and privileges
+  - List of organizations you have access to
+  - Organization IDs for subsequent API calls
+  
+  **Example Response:**
+  ```json
+  {
+    "email": "user@example.com",
+    "privileges": [
+      {
+        "org_id": "d040f5f4-f098-4525-9d6d-fac1894f8113",
+        "role": "admin",
+        "scope": "org"
+      }
+    ]
+  }
+  ```
+}

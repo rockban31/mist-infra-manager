@@ -1,0 +1,56 @@
+meta {
+  name: Get SLE Metrics (Available)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/sites/{{site_id}}/sle/site/{{site_id}}/metrics
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Token {{api_token}}
+  Content-Type: application/json
+}
+
+docs {
+  # Get SLE Metrics (Available Metrics)
+  
+  Retrieve the list of available Service Level Expectation (SLE) metrics for a site.
+  
+  **Prerequisites:**
+  - You must have a valid `site_id`
+  
+  **Response includes:**
+  - List of supported SLE metrics
+  - Metric names that can be used in detailed queries
+  
+  **Common SLE Metrics:**
+  - `coverage` - WiFi coverage quality
+  - `capacity` - Network capacity
+  - `time-to-connect` - Client connection time
+  - `throughput` - Network throughput
+  - `roaming` - Client roaming performance
+  - `ap-availability` - Access Point availability
+  - `switch-health` - Switch health status
+  - `gateway-health` - Gateway health status
+  
+  **Example Response:**
+  ```json
+  {
+    "supported": [
+      "coverage",
+      "capacity",
+      "time-to-connect",
+      "failed-to-connect",
+      "throughput",
+      "roaming",
+      "ap-availability",
+      "switch-health",
+      "gateway-health"
+    ]
+  }
+  ```
+}

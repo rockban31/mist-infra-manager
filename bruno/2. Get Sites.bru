@@ -1,0 +1,43 @@
+meta {
+  name: Get Sites
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/orgs/{{org_id}}/sites
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Token {{api_token}}
+  Content-Type: application/json
+}
+
+docs {
+  # Get Sites
+  
+  Retrieve all sites within the organization.
+  
+  **Prerequisites:**
+  - You must have a valid `org_id` (get from "Get Self" request)
+  
+  **Response includes:**
+  - Site ID, name, and address
+  - Timezone and location coordinates
+  - Site configuration details
+  
+  **Example Response:**
+  ```json
+  [
+    {
+      "id": "ca01f9d9-cc53-4418-8762-2df3057ac968",
+      "name": "Phoenix",
+      "address": "Phoenix, AZ",
+      "timezone": "America/Phoenix",
+      "org_id": "d040f5f4-f098-4525-9d6d-fac1894f8113"
+    }
+  ]
+  ```
+}

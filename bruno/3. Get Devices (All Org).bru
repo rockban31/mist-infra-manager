@@ -1,0 +1,44 @@
+meta {
+  name: Get Devices (All Org)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/orgs/{{org_id}}/devices
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Token {{api_token}}
+  Content-Type: application/json
+}
+
+docs {
+  # Get Devices (Organization Level)
+  
+  Retrieve all devices across the entire organization.
+  
+  **Response includes:**
+  - Device MAC address, serial number, model
+  - Connection status and last seen timestamp
+  - Site assignment
+  - Device health and version info
+  
+  **Example Response:**
+  ```json
+  [
+    {
+      "id": "00000000-0000-0000-1000-5c5b35000012",
+      "mac": "5c5b35000012",
+      "serial": "ABC123456789",
+      "model": "AP43",
+      "type": "ap",
+      "site_id": "ca01f9d9-cc53-4418-8762-2df3057ac968",
+      "status": "connected",
+      "last_seen": 1703260800
+    }
+  ]
+  ```
+}

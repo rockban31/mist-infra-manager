@@ -1,0 +1,67 @@
+meta {
+  name: Get SLE Metric Summary
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{base_url}}/sites/{{site_id}}/sle/site/{{site_id}}/metric/time-to-connect/summary?start=1766331767&end=1766418167
+  body: none
+  auth: none
+}
+
+params:query {
+  start: 1766331767
+  end: 1766418167
+}
+
+headers {
+  Authorization: Token {{api_token}}
+  Content-Type: application/json
+}
+
+docs {
+  # Get SLE Metric Summary
+  
+  Retrieve detailed summary for a specific SLE metric over a time period.
+  
+  **URL Parameters:**
+  - `metric` - The metric name (e.g., time-to-connect, throughput, coverage)
+  
+  **Query Parameters:**
+  - `start` - Start timestamp (Unix epoch in seconds)
+  - `end` - End timestamp (Unix epoch in seconds)
+  
+  **Time Range Calculation:**
+  ```
+  Current time: int(time.time())
+  24 hours ago: current_time - (24 * 3600)
+  7 days ago: current_time - (7 * 24 * 3600)
+  ```
+  
+  **Common Metrics to Try:**
+  - `time-to-connect`
+  - `throughput`
+  - `coverage`
+  - `capacity`
+  - `failed-to-connect`
+  - `roaming`
+  - `ap-availability`
+  
+  **Example Response:**
+  ```json
+  {
+    "metric": "time-to-connect",
+    "start": 1766331767,
+    "end": 1766418167,
+    "sle": [
+      {
+        "path": "fast",
+        "value": 95.5,
+        "threshold": 90
+      }
+    ],
+    "classifier": "device_os"
+  }
+  ```
+}

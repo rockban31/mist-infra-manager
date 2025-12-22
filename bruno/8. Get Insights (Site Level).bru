@@ -1,0 +1,50 @@
+meta {
+  name: Get Insights (Site Level)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{base_url}}/sites/{{site_id}}/insights/site/{{site_id}}/stats
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Token {{api_token}}
+  Content-Type: application/json
+}
+
+docs {
+  # Get Insights (Site Level) ✅ FIXED
+  
+  Retrieve insight statistics for a specific site.
+  
+  **This is the CORRECTED endpoint** - the original `/sites/{site_id}/insights` returns 404.
+  
+  **Prerequisites:**
+  - You must have a valid `site_id`
+  
+  **Response Format:**
+  - Direct data object (not paginated)
+  - Contains statistical data about the site
+  
+  **Example Response:**
+  ```json
+  {
+    "start": 1766331767,
+    "end": 1766418167,
+    "interval": 3600,
+    "limit": 100,
+    "page": 1,
+    "data": {
+      "stats": [
+        {
+          "timestamp": 1766331767,
+          "value": 95.5
+        }
+      ]
+    }
+  }
+  ```
+}

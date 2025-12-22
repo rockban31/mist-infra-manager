@@ -1,0 +1,45 @@
+meta {
+  name: Get Alarms (Site Level)
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{base_url}}/sites/{{site_id}}/alarms
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Token {{api_token}}
+  Content-Type: application/json
+}
+
+docs {
+  # Get Alarms (Site Level)
+  
+  Retrieve active alarms for a specific site.
+  
+  **Prerequisites:**
+  - You must have a valid `site_id`
+  
+  **Note:** This endpoint may return 404 for some organizations.
+  If it fails, the feature may not be enabled for your account.
+  
+  **Response includes:**
+  - Same alarm information as org-level call
+  - Filtered to only alarms at the specified site
+  
+  **Example Response:**
+  ```json
+  [
+    {
+      "id": "alarm-123",
+      "type": "ap_offline",
+      "severity": "major",
+      "site_id": "ca01f9d9-cc53-4418-8762-2df3057ac968",
+      "timestamp": 1703260800
+    }
+  ]
+  ```
+}

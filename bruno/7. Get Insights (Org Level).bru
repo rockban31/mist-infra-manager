@@ -1,0 +1,50 @@
+meta {
+  name: Get Insights (Org Level)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{base_url}}/orgs/{{org_id}}/insights/sites-sle
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Token {{api_token}}
+  Content-Type: application/json
+}
+
+docs {
+  # Get Insights (Organization Level) ✅ FIXED
+  
+  Retrieve SLE insights across all sites in the organization.
+  
+  **This is the CORRECTED endpoint** - the original `/orgs/{org_id}/insights` returns 404.
+  
+  **Response Format:**
+  - Paginated response with `results`, `total`, `page`, `limit`
+  - Each result contains insight details for a site
+  
+  **Response Structure:**
+  ```json
+  {
+    "start": 1766331767,
+    "end": 1766418167,
+    "limit": 100,
+    "page": 1,
+    "total": 3,
+    "results": [
+      {
+        "site_id": "ca01f9d9-cc53-4418-8762-2df3057ac968",
+        "site_name": "Phoenix",
+        "type": "unknown",
+        "severity": "info",
+        "description": "SLE metric insight"
+      }
+    ]
+  }
+  ```
+  
+  **Note:** This endpoint provides high-level SLE insights for all sites.
+}

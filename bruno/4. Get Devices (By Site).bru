@@ -1,0 +1,42 @@
+meta {
+  name: Get Devices (By Site)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/sites/{{site_id}}/devices
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Token {{api_token}}
+  Content-Type: application/json
+}
+
+docs {
+  # Get Devices (Site Level)
+  
+  Retrieve all devices for a specific site.
+  
+  **Prerequisites:**
+  - You must have a valid `site_id` (get from "Get Sites" request)
+  
+  **Response includes:**
+  - Same device information as org-level call
+  - Filtered to only devices at the specified site
+  
+  **Example Response:**
+  ```json
+  [
+    {
+      "id": "00000000-0000-0000-1000-5c5b35000012",
+      "mac": "5c5b35000012",
+      "name": "AP-Floor1-001",
+      "site_id": "ca01f9d9-cc53-4418-8762-2df3057ac968",
+      "status": "connected"
+    }
+  ]
+  ```
+}
