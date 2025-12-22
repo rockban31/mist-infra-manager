@@ -158,20 +158,38 @@ class MistAPIClient:
         
         Args:
             site_id: Optional site ID to filter insights
+        
+        Returns:
+            List of insights dictionaries
+            
+        Note:
+            The organization-level endpoint returns SLE (Service Level Expectation) insights
+            in a paginated format with 'results' containing the actual insights data.
         """
         if not self.org_id:
             raise ValueError("Organization ID not initialized")
         
         try:
             if site_id:
-                url = f"{self.BASE_URL}/sites/{site_id}/insights"
+                # Use site-specific insights stats endpoint
+                url = f"{self.BASE_URL}/sites/{site_id}/insights/site/{site_id}/stats"
             else:
-                url = f"{self.BASE_URL}/orgs/{self.org_id}/insights"
+                # Use organization-level SLE insights endpoint
+                url = f"{self.BASE_URL}/orgs/{self.org_id}/insights/sites-sle"
             
             response = self.session.get(url)
             response.raise_for_status()
-            insights = response.json()
-            self.logger.info(f"Retrieved {len(insights)} insights")
+            data = response.json()
+            
+            # Extract insights from paginated response
+            if isinstance(data, dict) and 'results' in data:
+                insights = data.get('results', [])
+                self.logger.info(f"Retrieved {len(insights)} insights from {data.get('total', 'unknown')} total")
+            else:
+                # For site-level stats, the entire response is the data
+                insights = [data] if data else []
+                self.logger.info(f"Retrieved site insights data")
+            
             return insights
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Failed to get insights: {e}")
