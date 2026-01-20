@@ -132,14 +132,14 @@ class MistAPIClient:
             start_time = end_time - (hours * 3600)
             
             # First, get list of available metrics
-            metrics_url = f"{self.BASE_URL}/sites/{site_id}/sle/site/{site_id}/metrics"
+            metrics_url = f"{self.BASE_URL}/sites/{site_id}/sle"
             response = self.session.get(metrics_url)
             response.raise_for_status()
             available_metrics = response.json()
             
             # If specific metric requested, get its summary
             if metric:
-                summary_url = f"{self.BASE_URL}/sites/{site_id}/sle/site/{site_id}/metric/{metric}/summary"
+                summary_url = f"{self.BASE_URL}/sites/{site_id}/sle/metric/{metric}/summary"
                 params = {'start': start_time, 'end': end_time}
                 response = self.session.get(summary_url, params=params)
                 response.raise_for_status()
@@ -149,22 +149,21 @@ class MistAPIClient:
             return available_metrics
             
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Failed to get SLE metrics: {e}")
-            raise
+            self.logger.debug(f"Failed to get SLE metrics: {e}")
+            return None
     
     def get_insights(self, site_id: str = None) -> List[Dict]:
         """
         Get insights for organization or specific site.
         
+        For the Mist API, "insights" are actually SLE (Service Level Expectation) metrics
+        that measure infrastructure health. These are numeric scores for various metrics.
+        
         Args:
             site_id: Optional site ID to filter insights
         
         Returns:
-            List of insights dictionaries
-            
-        Note:
-            The organization-level endpoint returns SLE (Service Level Expectation) insights
-            in a paginated format with 'results' containing the actual insights data.
+            List of insights/metrics dictionaries converted to insight format
         """
         if not self.org_id:
             raise ValueError("Organization ID not initialized")
@@ -183,8 +182,10 @@ class MistAPIClient:
             
             # Extract insights from paginated response
             if isinstance(data, dict) and 'results' in data:
-                insights = data.get('results', [])
-                self.logger.info(f"Retrieved {len(insights)} insights from {data.get('total', 'unknown')} total")
+                sle_metrics = data.get('results', [])
+                self.logger.info(f"Retrieved {len(sle_metrics)} sites SLE metrics from {data.get('total', 'unknown')} total")
+                # Convert SLE metrics to insight format
+                insights = self._convert_sle_metrics_to_insights(sle_metrics)
             else:
                 # For site-level stats, the entire response is the data
                 insights = [data] if data else []
@@ -194,6 +195,66 @@ class MistAPIClient:
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Failed to get insights: {e}")
             raise
+    
+    def _convert_sle_metrics_to_insights(self, sle_metrics: List[Dict]) -> List[Dict]:
+        """
+        Convert SLE metrics to insight format with severity assessment.
+        
+        Args:
+            sle_metrics: List of SLE metric dictionaries
+            
+        Returns:
+            List of insights with assessed severity levels
+        """
+        insights = []
+        
+        # Metric thresholds for severity assessment
+        thresholds = {
+            'critical': 0.70,  # < 70% = critical
+            'major': 0.80,     # < 80% = major
+            'warning': 0.90    # < 90% = warning
+        }
+        
+        key_metrics = ['capacity', 'roaming', 'successful-connect', 'time-to-connect', 'ap-health']
+        
+        for site_metric in sle_metrics:
+            site_id = site_metric.get('site_id', 'unknown')
+            
+            # Analyze each key metric for this site
+            for metric_name in key_metrics:
+                metric_value = site_metric.get(metric_name)
+                
+                if metric_value is not None:
+                    # Determine severity based on threshold
+                    severity = 'info'
+                    if metric_value < thresholds['critical']:
+                        severity = 'critical'
+                    elif metric_value < thresholds['major']:
+                        severity = 'major'
+                    elif metric_value < thresholds['warning']:
+                        severity = 'warning'
+                    
+                    # Create insight from metric
+                    insight = {
+                        'title': f"{metric_name.replace('-', ' ').title()} Metric",
+                        'type': 'sle_metric',
+                        'severity': severity,
+                        'site_id': site_id,
+                        'metric_name': metric_name,
+                        'metric_value': round(metric_value, 4),
+                        'threshold': thresholds.get(severity, 1.0),
+                        'text': f"{metric_name.replace('-', ' ').title()}: {metric_value*100:.1f}% - "
+                               f"Site info: {site_metric.get('num_aps', 'N/A')} APs, "
+                               f"{site_metric.get('num_clients', 'N/A')} clients"
+                    }
+                    
+                    # Only include non-info insights (or include all for analysis)
+                    if severity != 'info':
+                        insights.append(insight)
+                    elif site_metric.get('num_aps') is not None:  # Include info level with site details
+                        insights.append(insight)
+        
+        return insights
     
     def get_alarms(self, site_id: str = None) -> List[Dict]:
         """

@@ -4,7 +4,7 @@
 mist:
   # Your Juniper Mist API token
   # Get this from: https://manage.mist.com/admin/?org_id=<your-org-id>#!organization/apitoken
-  api_token: "YOUR_API_TOKEN_HERE"
+  api_token: "Api token here"
 
 # Optional: Configure SLE thresholds (defaults are used if not specified)
 sle_thresholds:

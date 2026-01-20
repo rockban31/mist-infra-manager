@@ -54,9 +54,14 @@ class SLEMonitor:
             # Get available metrics for the site
             try:
                 available_metrics = self.client.get_sle_metrics(site_id)
-                self.logger.info(f"Site {site_name}: Available SLE metrics: {available_metrics}")
+                if available_metrics:
+                    supported = available_metrics.get('supported', [])
+                    self.logger.debug(f"Site {site_name}: Found {len(supported)} supported SLE metrics")
+                else:
+                    self.logger.debug(f"Site {site_name}: SLE metrics endpoint not available")
+                    return
             except Exception as e:
-                self.logger.warning(f"Site {site_name}: SLE metrics not available - {str(e)[:100]}")
+                self.logger.debug(f"Site {site_name}: SLE metrics not available")
                 return
             
             # Common SLE metric names in Mist API
@@ -113,7 +118,7 @@ class SLEMonitor:
                 for issue in issues:
                     self.logger.warning(f"  ⚠ {issue}")
             else:
-                self.logger.info(f"Site {site_name}: All checked SLE metrics within thresholds")
+                self.logger.info(f"  ✓ Site {site_name}: All SLE metrics within thresholds")
         
         except Exception as e:
             self.logger.error(f"Error monitoring site {site_name}: {e}")

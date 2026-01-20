@@ -1,14 +1,17 @@
 # Mist Infrastructure Manager
 
-A proactive infrastructure management tool for Juniper Mist networks using API integration. This tool monitors Service Level Expectations (SLE), analyzes insights, and provides actionable recommendations for network infrastructure health.
+A proactive infrastructure management tool for Juniper Mist networks using API integration. This tool monitors Service Level Expectations (SLE), analyzes SLE metrics as insights, and generates comprehensive reports with actionable recommendations for network infrastructure health.
 
 ## Features
 
 - **SLE Monitoring**: Track and monitor Service Level Expectations across all sites
-- **Insights Analysis**: Analyze Mist insights and identify patterns requiring attention
+- **Insights Analysis**: Analyze SLE metrics and identify performance issues requiring attention
+- **Summary Reports**: Comprehensive infrastructure health reports with detailed metrics
+- **Health Dashboard**: Quick visual status of infrastructure health by site
+- **Trend Analysis**: 24-hour trend analysis with recommendations and next steps
 - **Proactive Alerting**: Automatic detection of threshold violations and anomalies
 - **Multi-Site Support**: Manage multiple sites from a single interface
-- **Detailed Reporting**: Comprehensive reports on network health and performance
+- **Severity Levels**: Critical, Major, Warning, and Info categorization for action prioritization
 
 ## Prerequisites
 
@@ -61,7 +64,7 @@ You can also customize SLE thresholds and monitoring intervals. See `config/conf
 
 ### Basic Usage
 
-Run all monitoring and analysis:
+Run complete monitoring, analysis, and report generation:
 ```bash
 python src/main.py
 ```
@@ -73,14 +76,19 @@ Monitor SLE metrics only:
 python src/main.py --mode monitor
 ```
 
-Analyze insights only:
+Analyze SLE metrics as insights:
 ```bash
 python src/main.py --mode insights
 ```
 
-Generate reports:
+Generate Summary Report, Health Dashboard, and Trend Analysis:
 ```bash
 python src/main.py --mode report
+```
+
+Run all operations (equivalent to `python src/main.py`):
+```bash
+python src/main.py --mode all
 ```
 
 ### Daemon Mode (Continuous Monitoring)
@@ -94,14 +102,14 @@ python src/main.py --daemon
 python src/main.py --daemon --interval 5
 
 # Combine with other options
-python src/main.py --daemon --mode monitor --verbose
+python src/main.py --daemon --mode report --verbose
 ```
 
 The daemon runs immediately on startup, then repeats at the configured interval. Press `Ctrl+C` to stop gracefully.
 
 ### Advanced Options
 
-Enable verbose logging:
+Enable verbose debug logging:
 ```bash
 python src/main.py --verbose
 ```
@@ -111,6 +119,140 @@ Use a custom configuration file:
 python src/main.py --config /path/to/config.yaml
 ```
 
+### View Reports
+
+After running `python src/main.py --mode report`, reports are saved to the `reports/` directory:
+
+```bash
+# View latest summary report
+cd reports
+Get-Content (Get-ChildItem -File -Filter "SUMMARY*" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+
+# View latest health dashboard (text)
+Get-Content (Get-ChildItem -File -Filter "HEALTH*txt" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+
+# View latest health dashboard (JSON)
+Get-Content (Get-ChildItem -File -Filter "HEALTH*json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+```
+
+## Report Formats
+
+The tool supports the following report formats for different use cases:
+
+- **Text (`.txt`)**: Human-readable reports for monitoring and review
+- **JSON (`.json`)**: Machine-readable format for API integration and automation
+
+### Report Output Types
+
+#### Summary Report
+- Overall infrastructure health status
+- Insight breakdown by severity level
+- Per-site status with issue count
+- Detailed list of all insights with metrics
+- **Files**: `SUMMARY_REPORT_*.txt`
+
+#### Health Dashboard (Text & JSON)
+Quick status snapshot available in 2 formats:
+
+**Text Format** (`*.txt`)
+- ASCII-based layout for terminal viewing
+- Site status grid showing current health
+- Summary statistics
+
+**JSON Format** (`*.json`)
+- Programmatic access for automation
+- Complete health data with timestamps
+- Integration-ready structure
+
+## Dashboard Improvements & Features
+
+### Quick Wins (✅ Implemented)
+
+These easy-to-implement features are now available:
+
+1. **Multiple Export Formats**
+   - JSON export for programmatic access
+   - Text export for terminal viewing
+   
+2. **Health Status Indicators**
+   - [CRIT] = Critical (< 70%)
+   - [FAIL] = Unhealthy major issues (70-80%)
+   - [WARN] = Warning state (80-90%)
+   - [OK] = Healthy (≥ 90%)
+   
+3. **Site Status Grid**
+   - All sites displayed in one table
+   - Status and issue count at a glance
+   - Sites ordered by severity (critical first)
+
+4. **Alert Priority System** ✅ (NEW)
+   - Insights sorted by severity: Critical → Major → Warning → Info
+   - Critical alerts displayed first with action required notice
+   - Priority-based action recommendations for each severity level
+   - Site status ordered by severity for quick identification of problem areas
+   - Each alert includes specific next steps based on priority
+
+5. **Action Recommendations** ✅ (NEW)
+   - **Critical**: Immediate investigation, incident response engagement
+   - **Major**: Ticket creation, maintenance scheduling
+   - **Warning**: Trend monitoring, preventive maintenance planning
+   - **Info**: Routine monitoring status
+
+### Medium Effort Enhancements (Planned)
+
+These features will enhance the dashboard experience:
+
+1. **Comparison with Previous Run**
+   - Track metric trends over time
+   - Alert on degradation patterns
+   - Show improvement/decline status
+
+2. **ASCII Art Visualization**
+   - Performance bars (████ vs ░░░░)
+   - Status indicators with consistent styling
+   - Improved visual hierarchy
+
+3. **Detailed Recommendations**
+   - Actionable next steps per severity
+   - Priority-based remediation guidance
+   - Links to relevant documentation
+
+4. **Email Report Generation**
+   - Automated email delivery of reports
+   - Formatted HTML for email clients
+   - Attachment support for multiple formats
+
+### Advanced Features (Future Roadmap)
+
+Planned for future releases:
+
+1. **Real-Time Watch Mode**
+   - Live terminal dashboard updates
+   - Continuous monitoring display
+   - Auto-refresh with configurable intervals
+
+2. **Compact CLI Dashboard**
+   - Single-screen health overview
+   - Color-coded status display
+   - Minimal terminal footprint for continuous display
+
+3. **Web Dashboard Interface**
+   - Browser-based visualization
+   - Interactive charts and tables
+   - Historical data viewing and filtering
+
+4. **Integration Capabilities**
+   - Slack/Teams notifications for alerts
+   - PagerDuty integration for incident management
+   - Webhook support for custom integrations
+
+5. **Multi-Organization Support**
+   - Manage multiple organizations
+   - Cross-org reporting
+   - Consolidated health views
+
+
+
 ## Project Structure
 
 ```
@@ -119,45 +261,41 @@ mist-infra-manager/
 │   ├── main.py              # Main application entry point
 │   ├── mist_client.py       # Mist API client
 │   ├── sle_monitor.py       # SLE monitoring module
-│   └── insights_analyzer.py # Insights analysis module
+│   ├── insights_analyzer.py # Insights analysis module
+│   └── report_generator.py  # Report generation module
 ├── config/
 │   ├── config.yaml.template # Configuration template
 │   └── config.yaml          # Your configuration (gitignored)
-├── docs/                    # Additional documentation
-├── tests/                   # Test files
+├── reports/                 # Generated reports (auto-created)
+│   ├── SUMMARY_REPORT_*.txt        # Summary reports with detailed insights
+│   ├── HEALTH_DASHBOARD_*.txt      # Health dashboard snapshots (text)
+│   └── HEALTH_DASHBOARD_*.json     # Health dashboard snapshots (JSON)
+├── bruno/                   # Bruno API collection files
 ├── requirements.txt         # Python dependencies
 └── README.md               # This file
 ```
 
 ## SLE Metrics Monitored
 
-- **Successful Connect**: Client connection success rate
-- **Time to Connect**: Average time for clients to connect
-- **Throughput**: Network throughput performance
-- **Capacity**: AP capacity utilization
-- **Roaming**: Client roaming success rate
+The tool monitors the following Service Level Expectations (SLE) metrics for each site:
 
-## Insights Analysis
+- **Successful Connect**: Client connection success rate (0-1, where 1 = 100%)
+- **Time to Connect**: Average time for clients to connect to network
+- **Throughput**: Network throughput performance metrics
+- **Capacity**: AP capacity utilization (0-1)
+- **Roaming**: Client roaming success rate (0-1)
+- **AP Health**: Access Point health and availability
 
-The tool analyzes Mist insights and categorizes them by:
-- **Severity**: Critical, Major, Minor, Warning, Info
-- **Type**: Various insight types from Mist platform
-- **Site**: Per-site analysis and reporting
+## Insights and Severity Levels
 
-### Proactive Recommendations
+SLE metrics are converted to actionable insights with severity levels:
 
-Based on the analysis, the tool provides:
-- Urgent action items for critical issues
-- Pattern detection across multiple occurrences
-- Site-specific issue prioritization
-- Root cause investigation suggestions
-
-## Output
-
-The application generates:
-- Console output with real-time monitoring status
-- Log file (`mist_infra_manager.log`) with detailed information
-- Summary reports with actionable recommendations
+| Severity | Threshold | Action Required |
+|----------|-----------|-----------------|
+| **Critical** | < 0.70 (70%) | Immediate action required |
+| **Major** | 0.70 - 0.80 (70-80%) | Address within 24 hours |
+| **Warning** | 0.80 - 0.90 (80-90%) | Monitor and escalate if worsens |
+| **Info** | ≥ 0.90 (90%) | Normal operation |
 
 ## Scheduling
 
@@ -177,6 +315,7 @@ If you prefer external scheduling:
 **Windows Task Scheduler**:
 1. Create a new task
 2. Set trigger (e.g., every 15 minutes)
+
 3. Action: `python D:\mist-infra-manager\src\main.py`
 
 **Linux/Mac (cron)**:
@@ -187,6 +326,19 @@ crontab -e
 # Run every 15 minutes
 */15 * * * * cd /path/to/mist-infra-manager && python src/main.py
 ```
+
+## Console Output Format
+
+The application uses a clean, aligned console output format:
+```
+HH:MM:SS | LEVEL    | Message
+13:45:06 | INFO     | Starting Mist Infrastructure Manager
+13:45:07 | INFO     | Configuration loaded from config/config.yaml
+13:45:08 | INFO     | Retrieved 3 sites
+13:45:09 | WARNING  | Site Sonic: Capacity metric critical (69.6%)
+```
+
+Detailed logs are saved to `mist_infra_manager.log` for debugging and audit purposes.
 
 ## Security Best Practices
 

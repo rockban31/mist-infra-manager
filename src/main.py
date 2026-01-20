@@ -17,6 +17,7 @@ import yaml
 from mist_client import MistAPIClient
 from sle_monitor import SLEMonitor
 from insights_analyzer import InsightsAnalyzer
+from report_generator import ReportGenerator
 
 
 # Global flag for graceful shutdown
@@ -25,14 +26,31 @@ _shutdown_requested = False
 
 def setup_logging(level=logging.INFO):
     """Configure logging for the application."""
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler('mist_infra_manager.log'),
-            logging.StreamHandler()
-        ]
+    # Custom formatter for cleaner console output
+    console_formatter = logging.Formatter(
+        '%(asctime)s | %(levelname)-8s | %(message)s',
+        datefmt='%H:%M:%S'
     )
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Console handler - shorter format for readability
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+    console_handler.setFormatter(console_formatter)
+    
+    # File handler - detailed format for debugging
+    file_handler = logging.FileHandler('mist_infra_manager.log')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(file_formatter)
+    
+    # Root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
 
 
 def signal_handler(signum, frame):
@@ -67,7 +85,8 @@ def run_monitoring_cycle(client, mode: str, logger):
         
         if mode in ['report', 'all']:
             logger.info("Generating infrastructure report...")
-            # Future: Add reporting functionality
+            report_generator = ReportGenerator(client)
+            report_generator.generate_report()
         
         logger.info("Monitoring cycle completed")
         

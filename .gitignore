@@ -42,6 +42,10 @@ venv.bak/
 *.log
 logs/
 
+# Reports (generated dynamically)
+reports/
+reports/history/
+
 # Configuration (contains sensitive data)
 config/config.yaml
 
