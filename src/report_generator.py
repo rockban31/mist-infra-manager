@@ -9,21 +9,25 @@ from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from trend_analyzer import TrendAnalyzer
+
 
 class ReportGenerator:
     """Generate comprehensive infrastructure reports."""
     
-    def __init__(self, mist_client):
+    def __init__(self, mist_client, trend_analyzer: Optional[TrendAnalyzer] = None):
         """
         Initialize Report Generator.
         
         Args:
             mist_client: MistAPIClient instance
+            trend_analyzer: Optional TrendAnalyzer instance for trend analysis
         """
         self.client = mist_client
         self.logger = logging.getLogger(__name__)
         self.report_dir = Path("reports")
         self.report_dir.mkdir(exist_ok=True)
+        self.trend_analyzer = trend_analyzer
     
     def generate_report(self):
         """Generate complete infrastructure report."""
@@ -40,10 +44,27 @@ class ReportGenerator:
             # Generate reports
             self._generate_summary_report(sites, insights, health_status)
             self._generate_health_dashboard(health_status, sites)
-            self._generate_health_dashboard_json(health_status, sites)
+            health_dashboard_json = self._generate_health_dashboard_json(health_status, sites)
             
-            self.logger.info("All reports generated successfully")
-            self.logger.info(f"Reports saved to: {self.report_dir.absolute()}")
+            # Analyze trends if trend analyzer is available
+            trend_report_text = ""
+            trends = None
+            if self.trend_analyzer:
+                trends = self.trend_analyzer.analyze_trends(health_dashboard_json)
+                trend_report_text = self.trend_analyzer.generate_trend_report(
+                    health_dashboard_json, trends
+                )
+                # Save current report to history
+                self.trend_analyzer.save_report_to_history(health_dashboard_json)
+                # Log trend information
+                self.logger.info(trend_report_text)
+            
+            # Return trend data for notifications
+            return {
+                'health_status': health_status,
+                'trends': trends,
+                'health_dashboard_json': health_dashboard_json
+            }
             
         except Exception as e:
             self.logger.error(f"Error generating reports: {e}")
@@ -363,3 +384,4 @@ class ReportGenerator:
             json.dump(json_data, f, indent=2)
         
         self.logger.info(f"Health Dashboard JSON generated: {json_name}")
+        return json_data

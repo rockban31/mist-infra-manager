@@ -18,6 +18,8 @@ from mist_client import MistAPIClient
 from sle_monitor import SLEMonitor
 from insights_analyzer import InsightsAnalyzer
 from report_generator import ReportGenerator
+from trend_analyzer import TrendAnalyzer
+from notification_service import NotificationService
 
 
 # Global flag for graceful shutdown
@@ -67,7 +69,7 @@ def load_config(config_path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def run_monitoring_cycle(client, mode: str, logger):
+def run_monitoring_cycle(client, config, mode: str, logger):
     """Execute a single monitoring cycle."""
     logger.info("="  * 60)
     logger.info("Starting monitoring cycle")
@@ -85,8 +87,47 @@ def run_monitoring_cycle(client, mode: str, logger):
         
         if mode in ['report', 'all']:
             logger.info("Generating infrastructure report...")
-            report_generator = ReportGenerator(client)
-            report_generator.generate_report()
+            
+            # Initialize trend analyzer
+            history_config = config.get('history', {})
+            trend_analyzer = TrendAnalyzer(
+                history_dir=history_config.get('directory', 'reports/history'),
+                keep_days=history_config.get('keep_days', 7)
+            )
+            
+            # Generate report with trend analysis
+            report_generator = ReportGenerator(client, trend_analyzer)
+            report_result = report_generator.generate_report()
+            
+            # Send notifications if enabled
+            notification_config = config.get('notifications', {})
+            if notification_config.get('enabled', False):
+                notification_service = NotificationService(notification_config)
+                health_status = report_result.get('health_status', {})
+                trends = report_result.get('trends', {})
+                
+                # Send critical alerts
+                if health_status.get('critical_insights', 0) > 0:
+                    logger.info("Sending critical alert notification...")
+                    notification_service.send_critical_alert({
+                        'critical_insights': health_status.get('critical_insights', 0),
+                        'affected_sites': len([s for s in health_status.get('sites_status', {}).values() 
+                                             if s.get('status') == 'CRITICAL'])
+                    })
+                
+                # Send major alerts
+                if health_status.get('major_insights', 0) > 0 and health_status.get('critical_insights', 0) == 0:
+                    logger.info("Sending major alert notification...")
+                    notification_service.send_major_alert({
+                        'major_insights': health_status.get('major_insights', 0),
+                        'affected_sites': len([s for s in health_status.get('sites_status', {}).values() 
+                                             if s.get('status') == 'UNHEALTHY'])
+                    })
+                
+                # Send trend degradation alerts
+                if trends and trends.get('degradation_alerts'):
+                    logger.info("Sending trend degradation alert notification...")
+                    notification_service.send_trend_alert(trends)
         
         logger.info("Monitoring cycle completed")
         
@@ -95,12 +136,13 @@ def run_monitoring_cycle(client, mode: str, logger):
         logger.info("Continuing despite errors...")
 
 
-def run_daemon(client, mode: str, interval_minutes: int, logger):
+def run_daemon(client, config, mode: str, interval_minutes: int, logger):
     """
     Run the monitoring tool in daemon mode with scheduled intervals.
     
     Args:
         client: MistAPIClient instance
+        config: Configuration dictionary
         mode: Operation mode (monitor, insights, report, all)
         interval_minutes: Minutes between monitoring cycles
         logger: Logger instance
@@ -111,11 +153,11 @@ def run_daemon(client, mode: str, interval_minutes: int, logger):
     logger.info("Press Ctrl+C to stop")
     
     # Run immediately on startup
-    run_monitoring_cycle(client, mode, logger)
+    run_monitoring_cycle(client, config, mode, logger)
     
     # Schedule subsequent runs
     schedule.every(interval_minutes).minutes.do(
-        run_monitoring_cycle, client, mode, logger
+        run_monitoring_cycle, client, config, mode, logger
     )
     
     # Main loop
@@ -178,20 +220,19 @@ def main():
         # Initialize Mist API client
         client = MistAPIClient(config_path=args.config)
         
+        # Load configuration
+        config = load_config(args.config)
+        
         if args.daemon:
             # Load interval from config or use argument/default
             interval = args.interval
             if interval is None:
-                try:
-                    config = load_config(args.config)
-                    interval = config.get('monitoring', {}).get('interval_minutes', 15)
-                except Exception:
-                    interval = 15  # Default to 15 minutes
+                interval = config.get('monitoring', {}).get('interval_minutes', 15)
             
-            run_daemon(client, args.mode, interval, logger)
+            run_daemon(client, config, args.mode, interval, logger)
         else:
             # Single run mode (original behavior)
-            run_monitoring_cycle(client, args.mode, logger)
+            run_monitoring_cycle(client, config, args.mode, logger)
             logger.info("Mist Infrastructure Manager completed successfully")
         
     except Exception as e:

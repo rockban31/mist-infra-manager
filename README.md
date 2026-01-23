@@ -8,7 +8,9 @@ A proactive infrastructure management tool for Juniper Mist networks using API i
 - **Insights Analysis**: Analyze SLE metrics and identify performance issues requiring attention
 - **Summary Reports**: Comprehensive infrastructure health reports with detailed metrics
 - **Health Dashboard**: Quick visual status of infrastructure health by site
-- **Trend Analysis**: 24-hour trend analysis with recommendations and next steps
+- **✅ Trend Analysis**: Automatic day-over-day metric comparison with degradation detection (Phase 1)
+- **✅ Email Notifications**: SMTP-based alerts for critical/major issues and trends (Phase 1)
+- **✅ Historical Data**: 7-day rolling retention of reports with automatic cleanup (Phase 1)
 - **Proactive Alerting**: Automatic detection of threshold violations and anomalies
 - **Multi-Site Support**: Manage multiple sites from a single interface
 - **Severity Levels**: Critical, Major, Warning, and Info categorization for action prioritization
@@ -107,6 +109,24 @@ python src/main.py --daemon --mode report --verbose
 
 The daemon runs immediately on startup, then repeats at the configured interval. Press `Ctrl+C` to stop gracefully.
 
+### Trend Analysis & Notifications (Phase 1 - NEW)
+
+Automatic trend analysis with 7-day history:
+```bash
+# Run report with trend analysis
+python src/main.py --mode report
+
+# Check historical data
+ls reports/history/$(date +%Y-%m-%d)/
+```
+
+Enable email notifications for alerts:
+1. Configure SMTP credentials in `config/config.yaml`
+2. Set `notifications.enabled: true`
+3. Alerts send automatically for critical/major issues and trends
+
+See [QUICK_START.md](QUICK_START.md) for email setup instructions.
+
 ### Advanced Options
 
 Enable verbose debug logging:
@@ -166,7 +186,31 @@ Quick status snapshot available in 2 formats:
 
 ## Dashboard Improvements & Features
 
-### Quick Wins (✅ Implemented)
+### Phase 1: Proactive Features (✅ Completed - January 2026)
+
+**Trend Analysis & Degradation Detection** ✅
+- Day-over-day metric comparison
+- Automatic degradation detection (↑ worsening, ↓ improving, → stable)
+- Historical snapshots for 7-day analysis
+- Trend indicators in reports and logs
+- Auto-cleanup of reports older than 7 days
+
+**Email Notifications** ✅
+- SMTP support for Gmail, Office365, custom servers
+- Three alert types: Critical (🚨), Major (⚠️), Trend (📈)
+- HTML-formatted emails with recommendations
+- Multi-recipient support
+- TLS/SSL encryption
+- Configurable in `config/config.yaml`
+
+**Historical Data Management** ✅
+- Reports organized by date: `reports/history/YYYY-MM-DD/`
+- 7-day rolling retention window
+- Automatic cleanup of old files
+- Configurable retention period
+- Foundation for future predictive features
+
+### Quick Wins (✅ Implemented Previously)
 
 These easy-to-implement features are now available:
 
@@ -198,58 +242,45 @@ These easy-to-implement features are now available:
    - **Warning**: Trend monitoring, preventive maintenance planning
    - **Info**: Routine monitoring status
 
-### Medium Effort Enhancements (Planned)
+### Phase 2: Medium Effort Enhancements (Planned)
 
-These features will enhance the dashboard experience:
+Next phase features being planned:
 
-1. **Comparison with Previous Run**
-   - Track metric trends over time
-   - Alert on degradation patterns
-   - Show improvement/decline status
+1. **Health Scoring System**
+   - Site health score (0-100)
+   - Score trending over time
+   - At-risk site identification
 
-2. **ASCII Art Visualization**
-   - Performance bars (████ vs ░░░░)
-   - Status indicators with consistent styling
-   - Improved visual hierarchy
+2. **Predictive Thresholds**
+   - Alert when approaching critical (not just at critical)
+   - Time-to-critical forecasting
+   - Capacity forecasting
 
-3. **Detailed Recommendations**
-   - Actionable next steps per severity
-   - Priority-based remediation guidance
-   - Links to relevant documentation
+3. **Real-Time Watch Mode Dashboard**
+   - Live terminal dashboard
+   - Auto-refresh every 5-15 seconds
+   - Visual status indicators
 
-4. **Email Report Generation**
-   - Automated email delivery of reports
-   - Formatted HTML for email clients
-   - Attachment support for multiple formats
+4. **Baseline Learning**
+   - Establish normal behavior per site
+   - Anomaly detection
+   - Seasonal pattern recognition
 
-### Advanced Features (Future Roadmap)
+### Phase 3: Advanced Features (Planned for Future)
 
-Planned for future releases:
+Planned for subsequent releases:
 
-1. **Real-Time Watch Mode**
-   - Live terminal dashboard updates
-   - Continuous monitoring display
-   - Auto-refresh with configurable intervals
+1. **Automatic Escalation & Ticketing**
+   - Auto-create tickets for critical issues
+   - Zendesk integration
+   - Automatic ticket updates
 
-2. **Compact CLI Dashboard**
-   - Single-screen health overview
-   - Color-coded status display
-   - Minimal terminal footprint for continuous display
+2. **Multi-Site Correlation Analysis**
+   - Identify cross-site issue patterns
+   - Infrastructure-wide problem detection
+   - Root cause analysis
 
-3. **Web Dashboard Interface**
-   - Browser-based visualization
-   - Interactive charts and tables
-   - Historical data viewing and filtering
-
-4. **Integration Capabilities**
-   - Slack/Teams notifications for alerts
-   - PagerDuty integration for incident management
-   - Webhook support for custom integrations
-
-5. **Multi-Organization Support**
-   - Manage multiple organizations
-   - Cross-org reporting
-   - Consolidated health views
+For full roadmap details, see [NEXT_PLAN.md](NEXT_PLAN.md)
 
 
 
@@ -262,17 +293,25 @@ mist-infra-manager/
 │   ├── mist_client.py       # Mist API client
 │   ├── sle_monitor.py       # SLE monitoring module
 │   ├── insights_analyzer.py # Insights analysis module
-│   └── report_generator.py  # Report generation module
+│   ├── report_generator.py  # Report generation module
+│   ├── trend_analyzer.py    # ✅ Phase 1: Trend analysis module
+│   └── notification_service.py # ✅ Phase 1: Email notification service
 ├── config/
 │   ├── config.yaml.template # Configuration template
 │   └── config.yaml          # Your configuration (gitignored)
 ├── reports/                 # Generated reports (auto-created)
+│   ├── history/             # ✅ Phase 1: Historical reports (7-day retention)
 │   ├── SUMMARY_REPORT_*.txt        # Summary reports with detailed insights
 │   ├── HEALTH_DASHBOARD_*.txt      # Health dashboard snapshots (text)
 │   └── HEALTH_DASHBOARD_*.json     # Health dashboard snapshots (JSON)
 ├── bruno/                   # Bruno API collection files
 ├── requirements.txt         # Python dependencies
-└── README.md               # This file
+├── README.md               # This file
+├── QUICK_START.md          # ✅ Phase 1: Quick start guide
+├── IMPLEMENTATION_SUMMARY.md # ✅ Phase 1: Technical documentation
+├── TESTING_GUIDE.md        # ✅ Phase 1: Test procedures
+├── NEXT_PLAN.md            # Roadmap and future phases
+└── DELIVERABLES.md         # Complete deliverables manifest
 ```
 
 ## SLE Metrics Monitored
@@ -374,12 +413,15 @@ Be aware of Mist API rate limits:
 
 ## Future Enhancements
 
-- [ ] Email/SMS alerting for critical issues
-- [ ] Dashboard web interface
-- [ ] Historical trend analysis
-- [ ] Integration with ticketing systems
-- [ ] Custom report templates
-- [ ] Multi-organization support
+- [x] Historical trend analysis (Phase 1 ✅)
+- [x] Email alerting for critical issues (Phase 1 ✅)
+- [ ] Health scoring system (Phase 2)
+- [ ] Predictive thresholds (Phase 2)
+- [ ] Real-time watch mode (Phase 2)
+- [ ] Dashboard web interface (Phase 3)
+- [ ] Integration with ticketing systems (Phase 3)
+- [ ] Custom report templates (Phase 3)
+- [ ] Multi-organization support (Phase 3)
 
 ## Contributing
 
@@ -389,11 +431,20 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 
 This project is provided as-is for infrastructure management purposes.
 
+## Documentation
+
+For detailed information, see:
+- **[QUICK_START.md](QUICK_START.md)** - Get started in 5 minutes
+- **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Technical reference
+- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Test and verification procedures
+- **[NEXT_PLAN.md](NEXT_PLAN.md)** - Roadmap and future phases
+- **[DELIVERABLES.md](DELIVERABLES.md)** - Complete project deliverables
+
 ## Support
 
 For issues related to:
 - **Mist API**: Contact Juniper Mist support
-- **This Tool**: Open an issue in the repository
+- **This Tool**: See [QUICK_START.md](QUICK_START.md) troubleshooting or check application logs
 
 ## Resources
 

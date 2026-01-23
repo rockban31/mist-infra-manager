@@ -24,3 +24,38 @@ monitoring:
   enable_sle_monitoring: true
   enable_insights_analysis: true
   enable_alarm_monitoring: true
+
+# Email Notifications Configuration
+notifications:
+  enabled: false                    # Set to true to enable notifications
+  email:
+    enabled: false                  # Set to true to enable email alerts
+    # Email server configuration
+    smtp_server: "smtp.gmail.com"   # Gmail: smtp.gmail.com
+    smtp_port: 587                  # Gmail: 587, Office365: 587, Custom: varies
+    use_tls: true                   # Use TLS encryption
+    smtp_user: ""                   # Your email address
+    smtp_password: ""               # Your password (use app password for Gmail 2FA)
+    from_address: "noreply@mist-infra-manager.local"
+    # Recipients - email addresses to send alerts to
+    recipients:
+      - "ops-team@example.com"
+      - "on-call@example.com"
+
+# Trend Analysis & History Configuration
+history:
+  # Directory to store historical reports
+  directory: "reports/history"
+  # How many days of history to keep
+  keep_days: 7
+  # Enable automatic cleanup of old reports
+  auto_cleanup: true
+  
+# Alert Thresholds
+thresholds:
+  # Percentage change per day to trigger degradation alert
+  trend_degradation_percent: 5
+  # Capacity threshold for pre-warning (before 70% critical)
+  pre_warning_capacity: 85
+  # Roaming threshold for pre-warning
+  pre_warning_roaming: 95
