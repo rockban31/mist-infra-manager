@@ -1,5 +1,9 @@
 # Testing Guide - Option A Implementation
 
+## Platform Notes
+
+**For Windows Users:** All bash commands below have PowerShell equivalents. See [Windows Testing Commands](#windows-testing-commands) section below for PowerShell versions.
+
 ## Test Environment Setup
 
 ### Prerequisites
@@ -38,6 +42,16 @@ ls -la reports/history/
 cat reports/history/$(date +%Y-%m-%d)/HEALTH_DASHBOARD_*.json | python -m json.tool
 ```
 
+**Windows PowerShell:**
+```powershell
+# Check if history directory was created
+Get-ChildItem reports/history/ -Force
+
+# View latest report
+$date = Get-Date -Format "yyyy-MM-dd"
+Get-Content "reports/history/$date/HEALTH_DASHBOARD_*.json" | python -m json.tool
+```
+
 ---
 
 ### Test 2: History Retention
@@ -56,6 +70,20 @@ ls -la reports/history/$(date +%Y-%m-%d)/
 # Expected: 2 or more HEALTH_DASHBOARD_*.json files
 ```
 
+**Windows PowerShell:**
+```powershell
+# Run report twice to create multiple entries
+python src/main.py --mode report
+Start-Sleep -Seconds 5
+python src/main.py --mode report
+
+# Check history contains today's reports
+$date = Get-Date -Format "yyyy-MM-dd"
+Get-ChildItem "reports/history/$date/" -Force
+
+# Expected: 2 or more HEALTH_DASHBOARD_*.json files
+```
+
 **Expected Results:**
 - ✅ Multiple reports in today's directory
 - ✅ Unique timestamps for each
@@ -70,7 +98,16 @@ find reports/history -name "HEALTH_DASHBOARD_*.json" -type f | wc -l
 ls -lh reports/history/*/HEALTH_DASHBOARD_*.json | head -5
 ```
 
----
+**Windows PowerShell:**
+```powershell
+# Count reports per day
+(Get-ChildItem reports/history -Recurse -Filter "HEALTH_DASHBOARD_*.json").Count
+
+# Check file sizes are reasonable (should be ~10KB)
+Get-ChildItem reports/history -Recurse -Filter "HEALTH_DASHBOARD_*.json" | 
+  Select-Object FullName, @{Name="SizeMB";Expression={[math]::Round($_.Length/1MB,2)}} | 
+  Select-Object -First 5
+```
 
 ### Test 3: Trend Detection
 **Objective:** Verify trend analysis detects changes
@@ -82,6 +119,16 @@ ls -lh reports/history/*/HEALTH_DASHBOARD_*.json | head -5
 mkdir -p reports/history/$(date -d yesterday +%Y-%m-%d)
 cp reports/HEALTH_DASHBOARD_*.json \
    reports/history/$(date -d yesterday +%Y-%m-%d)/HEALTH_DASHBOARD_old.json
+```
+
+**Windows PowerShell:**
+```powershell
+# Need at least 2 reports from different days
+# If you don't have yesterday's report, manually create one:
+$yesterday = (Get-Date).AddDays(-1).ToString("yyyy-MM-dd")
+$historyDir = "reports/history/$yesterday"
+New-Item -Path $historyDir -ItemType Directory -Force
+Copy-Item reports/HEALTH_DASHBOARD_*.json "$historyDir/HEALTH_DASHBOARD_old.json"
 ```
 
 **Steps:**
@@ -145,16 +192,14 @@ tail -f mist_infra_manager.log | grep -i email
 **Troubleshooting Email:**
 ```bash
 # Test SMTP connection
-python -c "import smtplib; s=smtplib.SMTP('smtp.gmail.com', 587); s.starttls(); print('OK')"
+python -c "import smtplib; s=smtplib.SMTP('exchrelay.global.tesco.org', 25); print('OK')"
 
-# Test credentials
+# Test credentials (Tesco relay doesn't require authentication)
 python << 'EOF'
 import smtplib
 try:
-    s = smtplib.SMTP('smtp.gmail.com', 587)
-    s.starttls()
-    s.login('your-email@gmail.com', 'your-app-password')
-    print('SMTP Authentication: OK')
+    s = smtplib.SMTP('exchrelay.global.tesco.org', 25, timeout=10)
+    print('SMTP Connection: OK')
     s.quit()
 except Exception as e:
     print(f'SMTP Error: {e}')
@@ -178,6 +223,19 @@ python src/main.py --daemon --interval 2 --verbose
 ls -la reports/history/$(date +%Y-%m-%d)/
 ```
 
+**Windows PowerShell:**
+```powershell
+# Start daemon with 2-minute interval for testing
+python src/main.py --daemon --interval 2 --verbose
+
+# Wait for 2+ cycles (4+ minutes)
+# Then press Ctrl+C to stop
+
+# Check that multiple reports were generated
+$date = Get-Date -Format "yyyy-MM-dd"
+Get-ChildItem "reports/history/$date/" -Force
+```
+
 **Expected Results:**
 - ✅ Monitoring cycle runs every 2 minutes
 - ✅ New report generated each cycle
@@ -191,6 +249,16 @@ find reports/history/$(date +%Y-%m-%d) -name "*.json" | wc -l
 
 # Check log entries per cycle
 grep "Starting monitoring cycle" mist_infra_manager.log | tail -5
+```
+
+**Windows PowerShell:**
+```powershell
+# Count reports generated (should be multiple)
+$date = Get-Date -Format "yyyy-MM-dd"
+(Get-ChildItem "reports/history/$date" -Filter "*.json").Count
+
+# Check log entries per cycle
+Get-Content mist_infra_manager.log | Select-String "Starting monitoring cycle" | Select-Object -Last 5
 ```
 
 ---
@@ -222,8 +290,6 @@ ps aux | grep "python.*main.py" | grep -v grep
 
 # Should return no results (clean shutdown)
 ```
-
----
 
 ### Test 7: Configuration Validation
 **Objective:** Verify configuration loading works correctly
@@ -422,3 +488,59 @@ For any test failures, check:
 2. Configuration: `cat config/config.yaml`
 3. API connectivity: Verify API token and network access
 4. SMTP connectivity: Verify SMTP credentials and firewall rules
+
+---
+
+## Windows Testing Commands
+
+If you're using Windows PowerShell, use these commands instead of the bash equivalents above:
+
+### Quick Test Commands (PowerShell)
+
+```powershell
+# Full test suite (requires ~15-20 minutes)
+Write-Host "=== Test 1: Basic Analysis ===" ; `
+python src/main.py --mode report --verbose ; `
+Write-Host "=== Test 2: History Check ===" ; `
+$date = Get-Date -Format "yyyy-MM-dd" ; `
+Get-ChildItem "reports/history/$date/" -Force ; `
+Write-Host "=== Test 5: Daemon Test (2 cycles) ===" ; `
+Start-Process python -ArgumentList "src/main.py", "--daemon", "--interval", "1" -Wait -NoNewWindow ; `
+Write-Host "=== Tests Complete ===" ; `
+Get-ChildItem "reports/history/$date/" -Force | Select-Object -Last 5
+```
+
+### Common Command Translations
+
+| Bash | PowerShell |
+|------|-----------|
+| `ls -la dir/` | `Get-ChildItem dir/ -Force` |
+| `cat file.txt` | `Get-Content file.txt` |
+| `tail -f file.txt` | `Get-Content file.txt -Wait` |
+| `tail -n 100 file.txt` | `Get-Content file.txt -Tail 100` |
+| `grep "pattern" file.txt` | `Get-Content file.txt \| Select-String "pattern"` |
+| `mkdir -p dir/` | `New-Item -Path dir/ -ItemType Directory -Force` |
+| `cp source dest` | `Copy-Item source dest` |
+| `sleep 5` | `Start-Sleep -Seconds 5` |
+| `find dir -name "*.json"` | `Get-ChildItem dir -Recurse -Filter "*.json"` |
+| `wc -l file.txt` | `(Get-Content file.txt \| Measure-Object -Line).Lines` |
+
+### Test Failures Troubleshooting (PowerShell)
+
+```powershell
+# Check logs
+Get-Content mist_infra_manager.log -Tail 100
+
+# View configuration
+Get-Content config/config.yaml
+
+# Count reports generated
+$date = Get-Date -Format "yyyy-MM-dd"
+(Get-ChildItem "reports/history/$date" -Filter "*.json").Count
+
+# Search logs for errors
+Get-Content mist_infra_manager.log | Select-String "ERROR|CRITICAL"
+
+# Check processes
+Get-Process python | Where-Object {$_.CommandLine -like "*main.py*"}
+```

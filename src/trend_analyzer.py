@@ -137,11 +137,11 @@ class TrendAnalyzer:
         
         # Determine overall trend
         if trends['degradation_alerts']:
-            trends['overall_trend'] = '↑'  # Worsening
+            trends['overall_trend'] = 'UP'  # Worsening
         elif trends['improvement_alerts']:
-            trends['overall_trend'] = '↓'  # Improving
+            trends['overall_trend'] = 'DOWN'  # Improving
         else:
-            trends['overall_trend'] = '→'  # Stable
+            trends['overall_trend'] = '-'  # Stable
         
         return trends
     
@@ -177,7 +177,7 @@ class TrendAnalyzer:
             'previous_value': previous_value,
             'current_value': current_value,
             'is_degrading': False,
-            'indicator': '→',
+            'indicator': '-',
             'change_percent': 0.0
         }
         
@@ -195,16 +195,16 @@ class TrendAnalyzer:
                     # For insights and errors: higher is worse
                     if current_value > previous_value:
                         trend['is_degrading'] = True
-                        trend['indicator'] = '↑'
+                        trend['indicator'] = 'UP'
                     elif current_value < previous_value:
-                        trend['indicator'] = '↓'
+                        trend['indicator'] = 'DOWN'
                 else:
                     # For capacities/utilization: higher is worse
                     if current_value > previous_value:
                         trend['is_degrading'] = True
-                        trend['indicator'] = '↑'
+                        trend['indicator'] = 'UP'
                     elif current_value < previous_value:
-                        trend['indicator'] = '↓'
+                        trend['indicator'] = 'DOWN'
         
         except Exception as e:
             self.logger.debug(f"Error calculating trend for {metric_name}: {e}")
@@ -228,38 +228,45 @@ class TrendAnalyzer:
         report_lines.append("="*70)
         
         if not trends['has_previous_data']:
-            report_lines.append("\n⚠️  No historical data available for trend analysis")
+            report_lines.append("\n[WARNING] No historical data available for trend analysis")
             report_lines.append("Trends will be available after next report generation")
             return "\n".join(report_lines)
         
         # Overall trend
-        report_lines.append(f"\nOverall Trend: {trends['overall_trend']}")
+        trend_symbol = trends['overall_trend']
+        if trend_symbol == '→':
+            trend_symbol = '[STABLE]'
+        elif trend_symbol == '↑':
+            trend_symbol = '[WORSENING]'
+        elif trend_symbol == '↓':
+            trend_symbol = '[IMPROVING]'
+        report_lines.append(f"\nOverall Trend: {trend_symbol}")
         
         # Degradation alerts
         if trends['degradation_alerts']:
-            report_lines.append("\n⚠️  DEGRADATION DETECTED:")
+            report_lines.append("\n[DEGRADATION] Degradation Detected:")
             for alert in trends['degradation_alerts']:
                 report_lines.append(
-                    f"  • {alert['metric']}: {alert['previous']:.1f} → {alert['current']:.1f} "
+                    f"  - {alert['metric']}: {alert['previous']:.1f} -> {alert['current']:.1f} "
                     f"({alert['change_percent']:+.1f}%) {alert['indicator']}"
                 )
         
         # Improvement alerts
         if trends['improvement_alerts']:
-            report_lines.append("\n✓ IMPROVEMENTS DETECTED:")
+            report_lines.append("\n[IMPROVEMENT] Improvements Detected:")
             for alert in trends['improvement_alerts']:
                 report_lines.append(
-                    f"  • {alert['metric']}: {alert['previous']:.1f} → {alert['current']:.1f} "
+                    f"  - {alert['metric']}: {alert['previous']:.1f} -> {alert['current']:.1f} "
                     f"({alert['change_percent']:+.1f}%) {alert['indicator']}"
                 )
         
         # Stable metrics
         stable_metrics = [
             m for m in trends['metrics_trend'].values() 
-            if m['indicator'] == '→'
+            if m['indicator'] == '-'
         ]
         if stable_metrics:
-            report_lines.append(f"\n→ STABLE: {len(stable_metrics)} metric(s) stable")
+            report_lines.append(f"\n[STABLE] {len(stable_metrics)} metric(s) stable")
         
         report_lines.append("\n" + "="*70 + "\n")
         

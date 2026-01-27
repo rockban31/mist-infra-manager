@@ -39,9 +39,16 @@ def setup_logging(level=logging.INFO):
     )
     
     # Console handler - shorter format for readability
-    console_handler = logging.StreamHandler()
+    # Configure UTF-8 encoding for Windows console compatibility
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(level)
     console_handler.setFormatter(console_formatter)
+    # Set UTF-8 encoding for console to handle Unicode characters
+    if hasattr(sys.stdout, 'reconfigure'):
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+        except Exception:
+            pass
     
     # File handler - detailed format for debugging
     file_handler = logging.FileHandler('mist_infra_manager.log')
