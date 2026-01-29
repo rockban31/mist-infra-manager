@@ -112,29 +112,47 @@ def run_monitoring_cycle(client, config, mode: str, logger):
                 notification_service = NotificationService(notification_config)
                 health_status = report_result.get('health_status', {})
                 trends = report_result.get('trends', {})
+                dashboard_content = report_result.get('dashboard_content', '')
+                summary_report_path = report_result.get('summary_report_path')
+                
+                # Prepare attachments list
+                attachments = []
+                if summary_report_path:
+                    attachments.append(summary_report_path)
+                
+                # Prepare common report data
+                affected_critical = len([s for s in health_status.get('sites_status', {}).values() 
+                                        if s.get('status') == 'CRITICAL'])
+                affected_unhealthy = len([s for s in health_status.get('sites_status', {}).values() 
+                                        if s.get('status') == 'UNHEALTHY'])
                 
                 # Send critical alerts
                 if health_status.get('critical_insights', 0) > 0:
                     logger.info("Sending critical alert notification...")
                     notification_service.send_critical_alert({
                         'critical_insights': health_status.get('critical_insights', 0),
-                        'affected_sites': len([s for s in health_status.get('sites_status', {}).values() 
-                                             if s.get('status') == 'CRITICAL'])
-                    })
+                        'affected_sites': affected_critical,
+                        'report_details': dashboard_content if dashboard_content else 'No details available',
+                        'sites_summary': str(health_status.get('sites_status', {}))[:1000],
+                        'insights_details': str(health_status.get('critical_insights', 0))
+                    }, attachments)
                 
                 # Send major alerts
                 if health_status.get('major_insights', 0) > 0 and health_status.get('critical_insights', 0) == 0:
                     logger.info("Sending major alert notification...")
                     notification_service.send_major_alert({
                         'major_insights': health_status.get('major_insights', 0),
-                        'affected_sites': len([s for s in health_status.get('sites_status', {}).values() 
-                                             if s.get('status') == 'UNHEALTHY'])
-                    })
+                        'affected_sites': affected_unhealthy,
+                        'report_details': dashboard_content if dashboard_content else 'No details available',
+                        'sites_summary': str(health_status.get('sites_status', {}))[:1000],
+                        'insights_details': str(health_status.get('major_insights', 0))
+                    }, attachments)
                 
                 # Send trend degradation alerts
                 if trends and trends.get('degradation_alerts'):
                     logger.info("Sending trend degradation alert notification...")
-                    notification_service.send_trend_alert(trends)
+                    trends['report_details'] = dashboard_content if dashboard_content else 'No details available'
+                    notification_service.send_trend_alert(trends, attachments)
         
         logger.info("Monitoring cycle completed")
         

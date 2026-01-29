@@ -42,8 +42,8 @@ class ReportGenerator:
             health_status = self._calculate_health_status(sites, insights)
             
             # Generate reports
-            self._generate_summary_report(sites, insights, health_status)
-            self._generate_health_dashboard(health_status, sites)
+            summary_report_path = self._generate_summary_report(sites, insights, health_status)
+            dashboard_content = self._generate_health_dashboard(health_status, sites)
             health_dashboard_json = self._generate_health_dashboard_json(health_status, sites)
             
             # Analyze trends if trend analyzer is available
@@ -59,13 +59,17 @@ class ReportGenerator:
                 # Log trend information
                 self.logger.info(trend_report_text)
             
-            # Return trend data for notifications
+            # Return trend data for notifications with dashboard content and attachment
             return {
                 'health_status': health_status,
                 'trends': trends,
-                'health_dashboard_json': health_dashboard_json
+                'health_dashboard_json': health_dashboard_json,
+                'dashboard_content': dashboard_content,
+                'report_text': dashboard_content,
+                'summary_report_path': summary_report_path
             }
             
+
         except Exception as e:
             self.logger.error(f"Error generating reports: {e}")
             raise
@@ -257,6 +261,7 @@ class ReportGenerator:
             f.write("=" * 70 + "\n")
         
         self.logger.info(f"Summary Report generated: {report_name}")
+        return str(report_path)
     
     def _generate_health_dashboard(self, health_status: Dict, sites: List[Dict]):
         """Generate health dashboard with action recommendations."""
@@ -272,77 +277,78 @@ class ReportGenerator:
             'CRITICAL': '[CRIT] CRITICAL'
         }
         
+        dashboard_text = ""
         with open(dashboard_path, 'w') as f:
-            f.write("=" * 70 + "\n")
-            f.write("INFRASTRUCTURE HEALTH DASHBOARD\n")
-            f.write("=" * 70 + "\n\n")
+            dashboard_text += "=" * 70 + "\n"
+            dashboard_text += "INFRASTRUCTURE HEALTH DASHBOARD\n"
+            dashboard_text += "=" * 70 + "\n\n"
             
-            f.write(f"Generated: {timestamp}\n")
-            f.write(f"Overall Status: {status_symbols.get(health_status['overall_health'], health_status['overall_health'])}\n\n")
+            dashboard_text += f"Generated: {timestamp}\n"
+            dashboard_text += f"Overall Status: {status_symbols.get(health_status['overall_health'], health_status['overall_health'])}\n\n"
             
             # Priority-based action recommendations
-            f.write("ACTION RECOMMENDATIONS (BY PRIORITY)\n")
-            f.write("-" * 70 + "\n")
+            dashboard_text += "ACTION RECOMMENDATIONS (BY PRIORITY)\n"
+            dashboard_text += "-" * 70 + "\n"
             
             if health_status['critical_insights'] > 0:
-                f.write(f"[CRIT] CRITICAL ({health_status['critical_insights']} issues)\n")
-                f.write(f"       {self._get_priority_action_text('critical')}\n")
-                f.write("       - Investigate immediately\n")
-                f.write("       - Engage incident response team\n")
-                f.write("       - Estimate resolution time\n\n")
+                dashboard_text += f"[CRIT] CRITICAL ({health_status['critical_insights']} issues)\n"
+                dashboard_text += f"       {self._get_priority_action_text('critical')}\n"
+                dashboard_text += "       - Investigate immediately\n"
+                dashboard_text += "       - Engage incident response team\n"
+                dashboard_text += "       - Estimate resolution time\n\n"
             
             if health_status['major_insights'] > 0:
-                f.write(f"[FAIL] MAJOR ({health_status['major_insights']} issues)\n")
-                f.write(f"       {self._get_priority_action_text('major')}\n")
-                f.write("       - Create tickets for remediation\n")
-                f.write("       - Schedule maintenance window\n")
-                f.write("       - Document impact and workarounds\n\n")
+                dashboard_text += f"[FAIL] MAJOR ({health_status['major_insights']} issues)\n"
+                dashboard_text += f"       {self._get_priority_action_text('major')}\n"
+                dashboard_text += "       - Create tickets for remediation\n"
+                dashboard_text += "       - Schedule maintenance window\n"
+                dashboard_text += "       - Document impact and workarounds\n\n"
             
             if health_status['warning_insights'] > 0:
-                f.write(f"[WARN] WARNING ({health_status['warning_insights']} issues)\n")
-                f.write(f"       {self._get_priority_action_text('warning')}\n")
-                f.write("       - Monitor trending metrics\n")
-                f.write("       - Plan preventive maintenance\n")
-                f.write("       - Update runbooks if applicable\n\n")
+                dashboard_text += f"[WARN] WARNING ({health_status['warning_insights']} issues)\n"
+                dashboard_text += f"       {self._get_priority_action_text('warning')}\n"
+                dashboard_text += "       - Monitor trending metrics\n"
+                dashboard_text += "       - Plan preventive maintenance\n"
+                dashboard_text += "       - Update runbooks if applicable\n\n"
             
             if health_status['info_insights'] > 0 and (health_status['critical_insights'] == 0 and 
                                                         health_status['major_insights'] == 0 and 
                                                         health_status['warning_insights'] == 0):
-                f.write(f"[INFO] All systems normal\n")
-                f.write("       Continue routine monitoring\n\n")
+                dashboard_text += f"[INFO] All systems normal\n"
+                dashboard_text += "       Continue routine monitoring\n\n"
             
             # Summary statistics
-            f.write("HEALTH STATISTICS\n")
-            f.write("-" * 70 + "\n")
+            dashboard_text += "HEALTH STATISTICS\n"
+            dashboard_text += "-" * 70 + "\n"
             total_issues = (health_status['critical_insights'] + 
                           health_status['major_insights'] + 
                           health_status['warning_insights'])
             
-            f.write(f"Total Issues:    {total_issues}\n")
-            f.write(f"  [CRIT] Critical:   {health_status['critical_insights']}\n")
-            f.write(f"  [WARN] Major:      {health_status['major_insights']}\n")
-            f.write(f"  [!] Warning:       {health_status['warning_insights']}\n")
-            f.write(f"  [i] Info:          {health_status['info_insights']}\n\n")
+            dashboard_text += f"Total Issues:    {total_issues}\n"
+            dashboard_text += f"  [CRIT] Critical:   {health_status['critical_insights']}\n"
+            dashboard_text += f"  [WARN] Major:      {health_status['major_insights']}\n"
+            dashboard_text += f"  [!] Warning:       {health_status['warning_insights']}\n"
+            dashboard_text += f"  [i] Info:          {health_status['info_insights']}\n\n"
             
             # Site status grid
-            f.write("SITE STATUS GRID\n")
-            f.write("-" * 70 + "\n")
+            dashboard_text += "SITE STATUS GRID\n"
+            dashboard_text += "-" * 70 + "\n"
             
             healthy_sites = sum(1 for s in health_status['sites_status'].values() if s['status'] == 'HEALTHY')
             degraded_sites = sum(1 for s in health_status['sites_status'].values() if s['status'] == 'DEGRADED')
             unhealthy_sites = sum(1 for s in health_status['sites_status'].values() if s['status'] == 'UNHEALTHY')
             critical_sites = sum(1 for s in health_status['sites_status'].values() if s['status'] == 'CRITICAL')
             
-            f.write(f"Healthy:    {healthy_sites}\n")
-            f.write(f"Degraded:   {degraded_sites}\n")
-            f.write(f"Unhealthy:  {unhealthy_sites}\n")
-            f.write(f"Critical:   {critical_sites}\n\n")
+            dashboard_text += f"Healthy:    {healthy_sites}\n"
+            dashboard_text += f"Degraded:   {degraded_sites}\n"
+            dashboard_text += f"Unhealthy:  {unhealthy_sites}\n"
+            dashboard_text += f"Critical:   {critical_sites}\n\n"
             
             # Individual site status - sorted by severity (critical sites first)
-            f.write("INDIVIDUAL SITE STATUS (PRIORITY-ORDERED)\n")
-            f.write("-" * 70 + "\n")
-            f.write(f"{'Site Name':<30} | {'Status':<12} | Insights\n")
-            f.write("-" * 70 + "\n")
+            dashboard_text += "INDIVIDUAL SITE STATUS (PRIORITY-ORDERED)\n"
+            dashboard_text += "-" * 70 + "\n"
+            dashboard_text += f"{'Site Name':<30} | {'Status':<12} | Insights\n"
+            dashboard_text += "-" * 70 + "\n"
             
             # Sort sites by severity for display
             severity_order = {'CRITICAL': 0, 'UNHEALTHY': 1, 'DEGRADED': 2, 'HEALTHY': 3}
@@ -352,13 +358,16 @@ class ReportGenerator:
             for site_name, site_info in sorted_sites:
                 status = site_info['status']
                 symbol = status_symbols.get(status, status)
-                f.write(f"{site_name:<30} | {symbol:<12} | {site_info['insight_count']}\n")
+                dashboard_text += f"{site_name:<30} | {symbol:<12} | {site_info['insight_count']}\n"
             
-            f.write("\n" + "=" * 70 + "\n")
-            f.write("Dashboard generated successfully\n")
-            f.write("=" * 70 + "\n")
+            dashboard_text += "\n" + "=" * 70 + "\n"
+            dashboard_text += "Dashboard generated successfully\n"
+            dashboard_text += "=" * 70 + "\n"
+            
+            f.write(dashboard_text)
         
         self.logger.info(f"Health Dashboard generated: {dashboard_name}")
+        return dashboard_text
     
     def _generate_health_dashboard_json(self, health_status: Dict, sites: List[Dict]):
         """Generate health dashboard in JSON format."""
