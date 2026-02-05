@@ -132,14 +132,14 @@ class MistAPIClient:
             start_time = end_time - (hours * 3600)
             
             # First, get list of available metrics
-            metrics_url = f"{self.BASE_URL}/sites/{site_id}/sle"
+            metrics_url = f"{self.BASE_URL}/sites/{site_id}/sle/site/{site_id}/metrics"
             response = self.session.get(metrics_url)
             response.raise_for_status()
             available_metrics = response.json()
             
             # If specific metric requested, get its summary
             if metric:
-                summary_url = f"{self.BASE_URL}/sites/{site_id}/sle/metric/{metric}/summary"
+                summary_url = f"{self.BASE_URL}/sites/{site_id}/sle/site/{site_id}/metric/{metric}/summary"
                 params = {'start': start_time, 'end': end_time}
                 response = self.session.get(summary_url, params=params)
                 response.raise_for_status()

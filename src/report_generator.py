@@ -5,6 +5,7 @@ Generates comprehensive infrastructure reports with summaries, dashboards, and t
 
 import logging
 import json
+import html
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -29,6 +30,39 @@ class ReportGenerator:
         self.report_dir.mkdir(exist_ok=True)
         self.trend_analyzer = trend_analyzer
     
+    def _dbm_to_quality_percentage(self, dbm_value):
+        """
+        Convert WiFi signal strength (dBm) to quality percentage.
+        
+        dBm scale (signal strength):
+        -30 to -50 dBm = Excellent (95-100%)
+        -50 to -60 dBm = Good (85-95%)
+        -60 to -70 dBm = Fair (70-85%)
+        -70 to -80 dBm = Weak (50-70%)
+        Below -80 dBm = Very Poor (0-50%)
+        
+        Args:
+            dbm_value: Signal strength in dBm (negative value)
+            
+        Returns:
+            Quality percentage (0-100)
+        """
+        if dbm_value >= -50:
+            # Excellent: -30 to -50 dBm maps to 95-100%
+            return 95 + (dbm_value + 50) * (5 / 20)
+        elif dbm_value >= -60:
+            # Good: -50 to -60 dBm maps to 85-95%
+            return 85 + (dbm_value + 60) * (10 / 10)
+        elif dbm_value >= -70:
+            # Fair: -60 to -70 dBm maps to 70-85%
+            return 70 + (dbm_value + 70) * (15 / 10)
+        elif dbm_value >= -80:
+            # Weak: -70 to -80 dBm maps to 50-70%
+            return 50 + (dbm_value + 80) * (20 / 10)
+        else:
+            # Very Poor: below -80 dBm maps to 0-50%
+            return max(0, 50 + (dbm_value + 80) * (50 / 20))
+    
     def generate_report(self):
         """Generate complete infrastructure report."""
         self.logger.info("="*60)
@@ -45,6 +79,7 @@ class ReportGenerator:
             summary_report_path = self._generate_summary_report(sites, insights, health_status)
             dashboard_content = self._generate_health_dashboard(health_status, sites)
             health_dashboard_json = self._generate_health_dashboard_json(health_status, sites)
+            insights_table_html = self._build_insights_table_html(insights, sites)
             
             # Analyze trends if trend analyzer is available
             trend_report_text = ""
@@ -66,7 +101,8 @@ class ReportGenerator:
                 'health_dashboard_json': health_dashboard_json,
                 'dashboard_content': dashboard_content,
                 'report_text': dashboard_content,
-                'summary_report_path': summary_report_path
+                'summary_report_path': summary_report_path,
+                'insights_table_html': insights_table_html
             }
             
 
@@ -85,10 +121,90 @@ class ReportGenerator:
             return []
     
     def _get_insights_data(self) -> List[Dict]:
-        """Retrieve all insights data."""
+        """Retrieve all insights data including throughput and coverage."""
         try:
+            # Get standard insights from Insights API
             insights = self.client.get_insights()
-            self.logger.debug(f"Retrieved {len(insights)} insights")
+            self.logger.debug(f"Retrieved {len(insights)} standard insights")
+            
+            # Get additional SLE metrics (throughput and coverage) for each site
+            sites = self.client.get_sites()
+            additional_metrics = ['throughput', 'coverage']
+            
+            for site in sites:
+                site_id = site.get('id')
+                site_name = site.get('name', 'Unknown')
+                
+                for metric_name in additional_metrics:
+                    try:
+                        metric_data = self.client.get_sle_metrics(site_id, metric=metric_name)
+                        if metric_data and 'sle' in metric_data:
+                            # SLE data structure has nested samples
+                            sle_dict = metric_data.get('sle', {})
+                            
+                            # Check if this is the new structure with samples
+                            if 'samples' in sle_dict and 'value' in sle_dict['samples']:
+                                values = sle_dict['samples']['value']
+                                if values:
+                                    # Check if metric uses dBm (signal strength) units
+                                    y_label = sle_dict.get('y_label', '')
+                                    original_dbm_value = None
+                                    
+                                    if y_label == 'dBm':
+                                        # Store original dBm average for display
+                                        original_dbm_value = sum(values) / len(values)
+                                        # Convert dBm values to quality percentages
+                                        quality_values = [self._dbm_to_quality_percentage(v) for v in values]
+                                        avg_score = sum(quality_values) / len(quality_values)
+                                        self.logger.debug(f"Converted {metric_name} from dBm ({original_dbm_value:.1f}) to quality: avg {avg_score:.1f}%")
+                                    else:
+                                        # Calculate average from all values as-is
+                                        avg_score = sum(values) / len(values)
+
+                                    
+                                    # Determine severity based on threshold
+                                    severity = 'info'
+                                    if avg_score < 70.0:
+                                        severity = 'critical'
+                                    elif avg_score < 80.0:
+                                        severity = 'major'
+                                    elif avg_score < 90.0:
+                                        severity = 'warning'
+                                    
+                                    # Create insight text with dBm value if available
+                                    if original_dbm_value is not None:
+                                        metric_text = f"{metric_name.capitalize()}: {original_dbm_value:.1f} dBm ({avg_score:.1f}%) - Site: {site_name}"
+                                    else:
+                                        metric_text = f"{metric_name.capitalize()}: {avg_score:.1f}% - Site: {site_name}"
+                                    
+                                    # Create insight from metric
+                                    insight = {
+                                        'title': f"{metric_name.capitalize()} Metric",
+                                        'type': 'sle_metric',
+                                        'severity': severity,
+                                        'site_id': site_id,
+                                        'metric_name': metric_name,
+                                        'metric_value': avg_score / 100.0,  # Convert to 0-1 range
+                                        'text': metric_text
+                                    }
+                                    insights.append(insight)
+                                    self.logger.debug(f"Added {metric_name} metric for {site_name}: {avg_score:.1f}%")
+                    
+                    except Exception as e:
+                        self.logger.debug(f"Could not retrieve {metric_name} for site {site_name}: {e}")
+            
+            classifier_cache = {}
+            for insight in insights:
+                if insight.get('type') == 'sle_metric':
+                    site_id = insight.get('site_id')
+                    metric_name = insight.get('metric_name')
+                    if site_id and metric_name:
+                        cache_key = (site_id, metric_name)
+                        if cache_key not in classifier_cache:
+                            classifier_cache[cache_key] = self._build_classifier_details(site_id, metric_name)
+                        insight['classifier_details'] = classifier_cache[cache_key]
+
+            self.logger.info(f"Retrieved {len(insights)} total insights (including throughput/coverage)")
             return insights
         except Exception as e:
             self.logger.warning(f"Could not retrieve insights data: {e}")
@@ -177,6 +293,84 @@ class ReportGenerator:
             sorted_by_priority[severity].sort(key=lambda x: x.get('title', ''))
         
         return sorted_by_priority
+
+    def _build_classifier_details(self, site_id: str, metric_name: str) -> str:
+        """Build concise classifier details from SLE metric summary."""
+        try:
+            summary = self.client.get_sle_metrics(site_id, metric=metric_name)
+            classifiers = summary.get('classifiers', []) if summary else []
+            if not classifiers:
+                return ""
+
+            scored = []
+            for classifier in classifiers:
+                name = classifier.get('name', 'unknown')
+                samples = classifier.get('samples', {})
+                degraded = samples.get('degraded', []) or []
+                total = samples.get('total', []) or []
+                degraded_sum = float(sum(degraded)) if degraded else 0.0
+                total_sum = float(sum(total)) if total else 0.0
+                percent = (degraded_sum / total_sum * 100.0) if total_sum else 0.0
+                impact = classifier.get('impact', {})
+                num_users = impact.get('num_users')
+                num_aps = impact.get('num_aps')
+                scored.append((
+                    degraded_sum,
+                    f"{name}: {percent:.1f}% degraded"
+                    + (f", users={num_users}" if num_users is not None else "")
+                    + (f", aps={num_aps}" if num_aps is not None else "")
+                ))
+
+            scored.sort(key=lambda item: item[0], reverse=True)
+            top = [item[1] for item in scored[:2]]
+            return "; ".join(top)
+        except Exception as e:
+            self.logger.debug(f"Could not build classifier details for {metric_name}: {e}")
+            return ""
+
+    def _build_insights_table_html(self, insights: List[Dict], sites: List[Dict]) -> str:
+        """Build an HTML table for detailed insights in email body."""
+        if not insights:
+            return ""
+
+        site_id_to_name = {site.get('id'): site.get('name', 'Unknown') for site in sites}
+        sorted_insights = self._sort_insights_by_priority(insights)
+        priority_order = ['critical', 'major', 'warning', 'info']
+
+        rows = []
+        for severity in priority_order:
+            for insight in sorted_insights.get(severity, []):
+                priority_label = severity.upper()
+                insight_type = insight.get('type', 'unknown')
+                site_id = insight.get('site_id')
+                site_name = site_id_to_name.get(site_id, 'Org') if site_id else 'Org'
+                details = insight.get('text') or insight.get('title', 'Unknown Insight')
+                classifier_details = insight.get('classifier_details', '')
+
+                rows.append(
+                    "<tr>"
+                    f"<td>{html.escape(priority_label)}</td>"
+                    f"<td>{html.escape(str(insight_type))}</td>"
+                    f"<td>{html.escape(str(site_name))}</td>"
+                    f"<td>{html.escape(str(details))}</td>"
+                    f"<td>{html.escape(str(classifier_details))}</td>"
+                    "</tr>"
+                )
+
+        if not rows:
+            return ""
+
+        table_html = (
+            "<table class=\"insights-table\">"
+            "<thead><tr>"
+            "<th>Priority</th><th>Type</th><th>Site</th><th>Details</th><th>Classifier Details</th>"
+            "</tr></thead>"
+            "<tbody>"
+            + "".join(rows)
+            + "</tbody></table>"
+        )
+
+        return table_html
     
     def _get_priority_action_text(self, severity: str) -> str:
         """Get action recommendations based on severity level."""

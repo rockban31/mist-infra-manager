@@ -207,13 +207,44 @@ class NotificationService:
         part.add_header('Content-Disposition', 'attachment', filename=file_path.name)
         msg.attach(part)
         self.logger.debug(f"Attached file: {file_path.name}")
+
+    def _summarize_report_details(self, report_details: str) -> str:
+        """Return a shortened report summary for email body."""
+        if not report_details:
+            return report_details
+
+        lines = report_details.splitlines()
+        summary_lines = []
+        skipping_action_block = False
+        stop_markers = {
+            "INDIVIDUAL SITE STATUS (PRIORITY-ORDERED)",
+            "INDIVIDUAL SITE STATUS",
+        }
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped == "ACTION RECOMMENDATIONS (BY PRIORITY)":
+                skipping_action_block = True
+                continue
+            if skipping_action_block and stripped == "HEALTH STATISTICS":
+                skipping_action_block = False
+                summary_lines.append(line)
+                continue
+            if skipping_action_block:
+                continue
+            if line.strip() in stop_markers:
+                break
+            summary_lines.append(line)
+
+        return "\n".join(summary_lines).strip()
     
     def _format_critical_alert(self, alert_data: Dict) -> str:
         """Format critical alert HTML body."""
         # Extract report details if available
-        report_details = alert_data.get('report_details', '')
+        report_details = self._summarize_report_details(alert_data.get('report_details', ''))
         sites_summary = alert_data.get('sites_summary', '')
         insights_details = alert_data.get('insights_details', '')
+        insights_table_html = alert_data.get('insights_table_html', '')
         
         html = f"""
         <html>
@@ -225,6 +256,10 @@ class NotificationService:
                 .alert-box {{ background-color: #ffebee; border-left: 4px solid #d32f2f; padding: 15px; margin: 10px 0; }}
                 .metric {{ background-color: white; padding: 10px; margin: 5px 0; border-radius: 4px; }}
                 .report-section {{ background-color: white; padding: 15px; margin: 10px 0; border-radius: 4px; }}
+                .insights-table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
+                .insights-table th {{ background-color: #d32f2f; color: white; text-align: left; padding: 8px; }}
+                .insights-table td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
+                .insights-table tr:nth-child(even) {{ background-color: #fafafa; }}
                 pre {{ background-color: #f0f0f0; padding: 10px; overflow-x: auto; font-size: 12px; }}
                 .footer {{ font-size: 12px; color: #666; padding: 10px; border-top: 1px solid #ddd; margin-top: 20px; }}
             </style>
@@ -253,16 +288,8 @@ class NotificationService:
                 </div>
                 
                 {f'<h3>Sites Status</h3><div class="report-section"><pre>{sites_summary}</pre></div>' if sites_summary else ''}
-                
-                {f'<h3>Insights Details</h3><div class="report-section"><pre>{insights_details}</pre></div>' if insights_details else ''}
-                
-                <h3>Immediate Actions Required</h3>
-                <ul>
-                    <li>Review the infrastructure report details above</li>
-                    <li>Check affected sites status</li>
-                    <li>Activate incident response procedures</li>
-                    <li>Notify operations team</li>
-                </ul>
+
+                {f'<h3>Detailed Insights (Table)</h3><div class="report-section">{insights_table_html}</div>' if insights_table_html else ''}
                 
             </div>
             <div class="footer">
@@ -277,9 +304,10 @@ class NotificationService:
     def _format_major_alert(self, alert_data: Dict) -> str:
         """Format major alert HTML body."""
         # Extract report details if available
-        report_details = alert_data.get('report_details', '')
+        report_details = self._summarize_report_details(alert_data.get('report_details', ''))
         sites_summary = alert_data.get('sites_summary', '')
         insights_details = alert_data.get('insights_details', '')
+        insights_table_html = alert_data.get('insights_table_html', '')
         
         html = f"""
         <html>
@@ -291,6 +319,10 @@ class NotificationService:
                 .alert-box {{ background-color: #ffe0b2; border-left: 4px solid #f57c00; padding: 15px; margin: 10px 0; }}
                 .metric {{ background-color: white; padding: 10px; margin: 5px 0; border-radius: 4px; }}
                 .report-section {{ background-color: white; padding: 15px; margin: 10px 0; border-radius: 4px; }}
+                .insights-table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
+                .insights-table th {{ background-color: #f57c00; color: white; text-align: left; padding: 8px; }}
+                .insights-table td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
+                .insights-table tr:nth-child(even) {{ background-color: #fafafa; }}
                 pre {{ background-color: #f0f0f0; padding: 10px; overflow-x: auto; font-size: 12px; }}
                 .footer {{ font-size: 12px; color: #666; padding: 10px; border-top: 1px solid #ddd; margin-top: 20px; }}
             </style>
@@ -319,16 +351,8 @@ class NotificationService:
                 </div>
                 
                 {f'<h3>Sites Status</h3><div class="report-section"><pre>{sites_summary}</pre></div>' if sites_summary else ''}
-                
-                {f'<h3>Insights Details</h3><div class="report-section"><pre>{insights_details}</pre></div>' if insights_details else ''}
-                
-                <h3>Recommended Actions</h3>
-                <ul>
-                    <li>Review the infrastructure report details above</li>
-                    <li>Monitor the situation closely</li>
-                    <li>Prepare contingency plans</li>
-                    <li>Keep team on standby</li>
-                </ul>
+
+                {f'<h3>Detailed Insights (Table)</h3><div class="report-section">{insights_table_html}</div>' if insights_table_html else ''}
                 
             </div>
             <div class="footer">

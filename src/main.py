@@ -114,6 +114,7 @@ def run_monitoring_cycle(client, config, mode: str, logger):
                 trends = report_result.get('trends', {})
                 dashboard_content = report_result.get('dashboard_content', '')
                 summary_report_path = report_result.get('summary_report_path')
+                insights_table_html = report_result.get('insights_table_html', '')
                 
                 # Prepare attachments list
                 attachments = []
@@ -134,7 +135,8 @@ def run_monitoring_cycle(client, config, mode: str, logger):
                         'affected_sites': affected_critical,
                         'report_details': dashboard_content if dashboard_content else 'No details available',
                         'sites_summary': str(health_status.get('sites_status', {}))[:1000],
-                        'insights_details': str(health_status.get('critical_insights', 0))
+                        'insights_details': str(health_status.get('critical_insights', 0)),
+                        'insights_table_html': insights_table_html
                     }, attachments)
                 
                 # Send major alerts
@@ -145,7 +147,8 @@ def run_monitoring_cycle(client, config, mode: str, logger):
                         'affected_sites': affected_unhealthy,
                         'report_details': dashboard_content if dashboard_content else 'No details available',
                         'sites_summary': str(health_status.get('sites_status', {}))[:1000],
-                        'insights_details': str(health_status.get('major_insights', 0))
+                        'insights_details': str(health_status.get('major_insights', 0)),
+                        'insights_table_html': insights_table_html
                     }, attachments)
                 
                 # Send trend degradation alerts

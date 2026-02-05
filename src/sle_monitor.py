@@ -16,6 +16,7 @@ class SLEMonitor:
         'successful_connect': 95.0,  # %
         'time_to_connect': 5.0,       # seconds
         'throughput': 80.0,           # % of expected
+        'coverage': 90.0,             # % coverage quality
         'capacity': 85.0,             # % utilization
         'roaming': 98.0,              # % successful
     }
@@ -69,6 +70,7 @@ class SLEMonitor:
                 'time-to-connect',
                 'successful-connect', 
                 'throughput',
+                'coverage',
                 'capacity',
                 'roaming'
             ]

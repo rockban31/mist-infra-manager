@@ -42,12 +42,23 @@ venv.bak/
 *.log
 logs/
 
-# Reports (generated dynamically)
-reports/
+# Reports (generated dynamically - excluded from git)
+reports/*.txt
+reports/*.json
 reports/history/
+reports/archive/
+
+# Keep reports directory structure
+!reports/.gitkeep
 
 # Configuration (contains sensitive data)
 config/config.yaml
+
+# Temporary files
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
 
 # Testing
 .pytest_cache/
