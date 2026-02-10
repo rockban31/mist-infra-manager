@@ -257,9 +257,11 @@ class NotificationService:
                 .metric {{ background-color: white; padding: 10px; margin: 5px 0; border-radius: 4px; }}
                 .report-section {{ background-color: white; padding: 15px; margin: 10px 0; border-radius: 4px; }}
                 .insights-table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
-                .insights-table th {{ background-color: #d32f2f; color: white; text-align: left; padding: 8px; }}
+                .insights-table th {{ color: white; text-align: left; padding: 8px; white-space: nowrap; }}
                 .insights-table td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
                 .insights-table tr:nth-child(even) {{ background-color: #fafafa; }}
+                .classifier-value {{ font-size: 11px; }}
+                .no-data {{ color: #999; font-style: italic; font-size: 11px; }}
                 pre {{ background-color: #f0f0f0; padding: 10px; overflow-x: auto; font-size: 12px; }}
                 .footer {{ font-size: 12px; color: #666; padding: 10px; border-top: 1px solid #ddd; margin-top: 20px; }}
             </style>
@@ -289,7 +291,7 @@ class NotificationService:
                 
                 {f'<h3>Sites Status</h3><div class="report-section"><pre>{sites_summary}</pre></div>' if sites_summary else ''}
 
-                {f'<h3>Detailed Insights (Table)</h3><div class="report-section">{insights_table_html}</div>' if insights_table_html else ''}
+                {f'<h3>SLE Classifier Breakdown</h3><div class="report-section">{insights_table_html}</div>' if insights_table_html else ''}
                 
             </div>
             <div class="footer">
@@ -320,9 +322,11 @@ class NotificationService:
                 .metric {{ background-color: white; padding: 10px; margin: 5px 0; border-radius: 4px; }}
                 .report-section {{ background-color: white; padding: 15px; margin: 10px 0; border-radius: 4px; }}
                 .insights-table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
-                .insights-table th {{ background-color: #f57c00; color: white; text-align: left; padding: 8px; }}
+                .insights-table th {{ color: white; text-align: left; padding: 8px; white-space: nowrap; }}
                 .insights-table td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
                 .insights-table tr:nth-child(even) {{ background-color: #fafafa; }}
+                .classifier-value {{ font-size: 11px; }}
+                .no-data {{ color: #999; font-style: italic; font-size: 11px; }}
                 pre {{ background-color: #f0f0f0; padding: 10px; overflow-x: auto; font-size: 12px; }}
                 .footer {{ font-size: 12px; color: #666; padding: 10px; border-top: 1px solid #ddd; margin-top: 20px; }}
             </style>
@@ -352,7 +356,7 @@ class NotificationService:
                 
                 {f'<h3>Sites Status</h3><div class="report-section"><pre>{sites_summary}</pre></div>' if sites_summary else ''}
 
-                {f'<h3>Detailed Insights (Table)</h3><div class="report-section">{insights_table_html}</div>' if insights_table_html else ''}
+                {f'<h3>SLE Classifier Breakdown</h3><div class="report-section">{insights_table_html}</div>' if insights_table_html else ''}
                 
             </div>
             <div class="footer">

@@ -12,6 +12,59 @@ from pathlib import Path
 
 from trend_analyzer import TrendAnalyzer
 
+# Mapping of SLE metric names to their expected classifiers (ordered)
+# Names sourced from Mist EU API /metric/{metric}/summary endpoint
+SLE_CLASSIFIER_MAP = {
+    'time-to-connect': [
+        'association', 'authorization', 'dhcp-nack', 'dhcp-stuck',
+        'dhcp-unresponsive', 'IP-Services',
+    ],
+    'successful-connect': [
+        'association', 'authorization', 'dns', 'dhcp-incomplete',
+        'dhcp-nack', 'dhcp-discover-unresponsive', 'dhcp-renew-unresponsive', 'arp',
+    ],
+    'coverage': [
+        'weak-signal', 'asymmetry-downlink', 'asymmetry-uplink',
+    ],
+    'roaming': [
+        'latency-slow-standard-roam', 'latency-slow-11r-roam', 'latency-slow-okc-roam',
+        'stability-failed-to-fast-roam', 'signal-quality-suboptimal-roam',
+        'signal-quality-sticky-client', 'signal-quality-interband-roam',
+    ],
+    'throughput': [
+        'network-issues', 'coverage', 'device-capability',
+        'capacity-non-wifi-interference', 'capacity-wifi-interference',
+        'capacity-excessive-client-load', 'capacity-high-bandwidth-utilization',
+    ],
+    'capacity': [
+        'non-wifi-interference', 'wifi-interference', 'client-usage', 'client-count',
+    ],
+    'ap-health': [
+        'low-power', 'ap-disconnected-ap-reboot', 'ap-disconnected-ap-unreachable',
+        'ap-disconnected-switch-down', 'ap-disconnected-site-down',
+        'ethernet-ethernet-errors', 'ethernet-speed-mismatch',
+        'network-jitter', 'network-latency', 'network-tunnel-down',
+    ],
+}
+
+# Human-friendly display names for SLE metrics
+SLE_DISPLAY_NAMES = {
+    'time-to-connect': 'Time to Connect',
+    'successful-connect': 'Successful Connects',
+    'coverage': 'Coverage',
+    'roaming': 'Roaming',
+    'throughput': 'Throughput',
+    'capacity': 'Capacity',
+    'ap-health': 'AP Health',
+}
+
+# Mapping from org-level insight metric names to SLE summary endpoint names
+# The org-level insights API uses "successful-connect" but the per-site
+# SLE summary endpoint uses "failed-to-connect"
+SLE_ENDPOINT_MAP = {
+    'successful-connect': 'failed-to-connect',
+}
+
 
 class ReportGenerator:
     """Generate comprehensive infrastructure reports."""
@@ -79,7 +132,7 @@ class ReportGenerator:
             summary_report_path = self._generate_summary_report(sites, insights, health_status)
             dashboard_content = self._generate_health_dashboard(health_status, sites)
             health_dashboard_json = self._generate_health_dashboard_json(health_status, sites)
-            insights_table_html = self._build_insights_table_html(insights, sites)
+            insights_table_html = self._build_grouped_insights_tables_html(insights, sites)
             
             # Analyze trends if trend analyzer is available
             trend_report_text = ""
@@ -121,7 +174,7 @@ class ReportGenerator:
             return []
     
     def _get_insights_data(self) -> List[Dict]:
-        """Retrieve all insights data including throughput and coverage."""
+        """Retrieve all insights data including throughput and coverage with classifier enrichment."""
         try:
             # Get standard insights from Insights API
             insights = self.client.get_insights()
@@ -131,6 +184,9 @@ class ReportGenerator:
             sites = self.client.get_sites()
             additional_metrics = ['throughput', 'coverage']
             
+            # Cache for SLE summary API responses: (site_id, metric_name) -> response
+            sle_summary_cache = {}
+            
             for site in sites:
                 site_id = site.get('id')
                 site_name = site.get('name', 'Unknown')
@@ -139,6 +195,9 @@ class ReportGenerator:
                     try:
                         metric_data = self.client.get_sle_metrics(site_id, metric=metric_name)
                         if metric_data and 'sle' in metric_data:
+                            # Cache the full response for classifier extraction later
+                            sle_summary_cache[(site_id, metric_name)] = metric_data
+                            
                             # SLE data structure has nested samples
                             sle_dict = metric_data.get('sle', {})
                             
@@ -193,6 +252,8 @@ class ReportGenerator:
                     except Exception as e:
                         self.logger.debug(f"Could not retrieve {metric_name} for site {site_name}: {e}")
             
+            # Enrich ALL sle_metric insights with structured classifier data
+            # Fetch SLE summaries for org-level metrics that weren't fetched above
             classifier_cache = {}
             for insight in insights:
                 if insight.get('type') == 'sle_metric':
@@ -201,8 +262,18 @@ class ReportGenerator:
                     if site_id and metric_name:
                         cache_key = (site_id, metric_name)
                         if cache_key not in classifier_cache:
-                            classifier_cache[cache_key] = self._build_classifier_details(site_id, metric_name)
-                        insight['classifier_details'] = classifier_cache[cache_key]
+                            # Use cached summary response if available, otherwise fetch
+                            cached_response = sle_summary_cache.get(cache_key)
+                            if not cached_response:
+                                # Map metric name to correct SLE endpoint name
+                                api_metric = SLE_ENDPOINT_MAP.get(metric_name, metric_name)
+                                cached_response = self.client.get_sle_metrics(site_id, metric=api_metric)
+                                if cached_response:
+                                    sle_summary_cache[cache_key] = cached_response
+                            classifier_cache[cache_key] = self._extract_classifier_data(
+                                metric_name, cached_response
+                            )
+                        insight['classifier_data'] = classifier_cache[cache_key]
 
             self.logger.info(f"Retrieved {len(insights)} total insights (including throughput/coverage)")
             return insights
@@ -294,83 +365,213 @@ class ReportGenerator:
         
         return sorted_by_priority
 
-    def _build_classifier_details(self, site_id: str, metric_name: str) -> str:
-        """Build concise classifier details from SLE metric summary."""
+    def _extract_classifier_data(self, metric_name: str, summary_response: Optional[Dict] = None) -> Dict[str, Dict]:
+        """
+        Extract structured classifier data from SLE metric summary response.
+        
+        Args:
+            metric_name: SLE metric name (e.g., 'capacity', 'roaming')
+            summary_response: Cached API response (avoids redundant API call)
+            
+        Returns:
+            Dict keyed by classifier name with percent_degraded, num_users, num_aps
+        """
+        result = {}
         try:
-            summary = self.client.get_sle_metrics(site_id, metric=metric_name)
-            classifiers = summary.get('classifiers', []) if summary else []
+            classifiers = summary_response.get('classifiers', []) if summary_response else []
+            expected = SLE_CLASSIFIER_MAP.get(metric_name, [])
+            
             if not classifiers:
-                return ""
+                if expected:
+                    self.logger.debug(f"No classifiers returned for {metric_name} (expected: {expected})")
+                return result
 
-            scored = []
             for classifier in classifiers:
                 name = classifier.get('name', 'unknown')
                 samples = classifier.get('samples', {})
                 degraded = samples.get('degraded', []) or []
                 total = samples.get('total', []) or []
-                degraded_sum = float(sum(degraded)) if degraded else 0.0
-                total_sum = float(sum(total)) if total else 0.0
+                degraded_sum = float(sum(d for d in degraded if d is not None)) if degraded else 0.0
+                total_sum = float(sum(t for t in total if t is not None)) if total else 0.0
                 percent = (degraded_sum / total_sum * 100.0) if total_sum else 0.0
                 impact = classifier.get('impact', {})
-                num_users = impact.get('num_users')
-                num_aps = impact.get('num_aps')
-                scored.append((
-                    degraded_sum,
-                    f"{name}: {percent:.1f}% degraded"
-                    + (f", users={num_users}" if num_users is not None else "")
-                    + (f", aps={num_aps}" if num_aps is not None else "")
-                ))
+                
+                result[name] = {
+                    'percent_degraded': round(percent, 1),
+                    'num_users': impact.get('num_users'),
+                    'num_aps': impact.get('num_aps'),
+                }
 
-            scored.sort(key=lambda item: item[0], reverse=True)
-            top = [item[1] for item in scored[:2]]
-            return "; ".join(top)
+            # Log missing expected classifiers
+            found = set(result.keys())
+            expected_set = set(expected)
+            missing = expected_set - found
+            extra = found - expected_set
+            if missing:
+                self.logger.debug(f"{metric_name}: missing expected classifiers: {missing}")
+            if extra:
+                self.logger.debug(f"{metric_name}: unexpected classifiers from API: {extra}")
+
         except Exception as e:
-            self.logger.debug(f"Could not build classifier details for {metric_name}: {e}")
-            return ""
+            self.logger.debug(f"Could not extract classifier data for {metric_name}: {e}")
+        
+        return result
 
-    def _build_insights_table_html(self, insights: List[Dict], sites: List[Dict]) -> str:
-        """Build an HTML table for detailed insights in email body."""
+    def _build_grouped_insights_tables_html(self, insights: List[Dict], sites: List[Dict]) -> str:
+        """
+        Build grouped HTML tables — one per SLE metric — with classifier sub-columns.
+        
+        Each table has columns: Priority | Site | Score | [classifier1] | [classifier2] | ...
+        Classifier values show: X.X% degraded, users=N, aps=N
+        """
         if not insights:
             return ""
 
         site_id_to_name = {site.get('id'): site.get('name', 'Unknown') for site in sites}
-        sorted_insights = self._sort_insights_by_priority(insights)
-        priority_order = ['critical', 'major', 'warning', 'info']
-
-        rows = []
-        for severity in priority_order:
-            for insight in sorted_insights.get(severity, []):
-                priority_label = severity.upper()
-                insight_type = insight.get('type', 'unknown')
-                site_id = insight.get('site_id')
-                site_name = site_id_to_name.get(site_id, 'Org') if site_id else 'Org'
-                details = insight.get('text') or insight.get('title', 'Unknown Insight')
-                classifier_details = insight.get('classifier_details', '')
-
-                rows.append(
-                    "<tr>"
-                    f"<td>{html.escape(priority_label)}</td>"
-                    f"<td>{html.escape(str(insight_type))}</td>"
-                    f"<td>{html.escape(str(site_name))}</td>"
-                    f"<td>{html.escape(str(details))}</td>"
-                    f"<td>{html.escape(str(classifier_details))}</td>"
-                    "</tr>"
-                )
-
-        if not rows:
+        
+        # Group insights by metric_name
+        metric_groups = {}
+        for insight in insights:
+            if insight.get('type') != 'sle_metric':
+                continue
+            metric_name = insight.get('metric_name', 'unknown')
+            metric_groups.setdefault(metric_name, []).append(insight)
+        
+        if not metric_groups:
             return ""
 
-        table_html = (
-            "<table class=\"insights-table\">"
-            "<thead><tr>"
-            "<th>Priority</th><th>Type</th><th>Site</th><th>Details</th><th>Classifier Details</th>"
-            "</tr></thead>"
-            "<tbody>"
-            + "".join(rows)
-            + "</tbody></table>"
-        )
-
-        return table_html
+        # Determine display order: sort metric groups by highest severity first
+        severity_rank = {'critical': 0, 'major': 1, 'warning': 2, 'info': 3}
+        
+        def group_sort_key(metric_name):
+            group_insights = metric_groups[metric_name]
+            min_sev = min(severity_rank.get(i.get('severity', 'info'), 3) for i in group_insights)
+            return (min_sev, metric_name)
+        
+        sorted_metrics = sorted(metric_groups.keys(), key=group_sort_key)
+        
+        # Severity badge colors for inline styling
+        severity_colors = {
+            'critical': '#d32f2f',
+            'major': '#e65100',
+            'warning': '#f57c00',
+            'info': '#388e3c',
+        }
+        
+        tables_html = []
+        for metric_name in sorted_metrics:
+            group_insights = metric_groups[metric_name]
+            display_name = SLE_DISPLAY_NAMES.get(metric_name, metric_name.replace('-', ' ').title())
+            expected_classifiers = SLE_CLASSIFIER_MAP.get(metric_name, [])
+            
+            # If no classifier map entry, discover classifiers from data
+            if not expected_classifiers:
+                all_classifier_names = set()
+                for ins in group_insights:
+                    cd = ins.get('classifier_data', {})
+                    all_classifier_names.update(cd.keys())
+                expected_classifiers = sorted(all_classifier_names)
+            
+            # Build classifier column headers (title-case, hyphens to spaces)
+            classifier_headers = []
+            for c in expected_classifiers:
+                classifier_headers.append(c.replace('-', ' ').title())
+            
+            # Build header row
+            header_cols = "<th>Priority</th><th>Site</th><th>Score</th>"
+            for ch in classifier_headers:
+                header_cols += f"<th>{html.escape(ch)}</th>"
+            
+            # Sort insights within group by severity then site name
+            group_insights.sort(key=lambda i: (
+                severity_rank.get(i.get('severity', 'info'), 3),
+                site_id_to_name.get(i.get('site_id', ''), 'ZZZ')
+            ))
+            
+            # Build rows
+            rows = []
+            for insight in group_insights:
+                severity = insight.get('severity', 'info').lower()
+                priority_label = severity.upper()
+                sev_color = severity_colors.get(severity, '#333')
+                site_id = insight.get('site_id')
+                site_name = site_id_to_name.get(site_id, 'Org') if site_id else 'Org'
+                
+                # Extract score from text or metric_value
+                score_text = self._extract_score_display(insight)
+                
+                # Build classifier cells
+                classifier_data = insight.get('classifier_data', {})
+                classifier_cells = ""
+                for c_name in expected_classifiers:
+                    c_data = classifier_data.get(c_name)
+                    if c_data:
+                        pct = c_data['percent_degraded']
+                        cell_parts = [f"{pct}% degraded"]
+                        if c_data.get('num_users') is not None:
+                            cell_parts.append(f"users={c_data['num_users']}")
+                        if c_data.get('num_aps') is not None:
+                            cell_parts.append(f"aps={c_data['num_aps']}")
+                        cell_value = ", ".join(cell_parts)
+                        # Color-code based on degradation percentage
+                        if pct >= 20.0:
+                            cell_style = 'color: #d32f2f; font-weight: bold;'
+                        elif pct >= 10.0:
+                            cell_style = 'color: #e65100;'
+                        elif pct > 0:
+                            cell_style = 'color: #f57c00;'
+                        else:
+                            cell_style = 'color: #388e3c;'
+                        classifier_cells += f'<td class="classifier-value" style="{cell_style}">{html.escape(cell_value)}</td>'
+                    else:
+                        classifier_cells += '<td class="no-data">No data</td>'
+                
+                rows.append(
+                    "<tr>"
+                    f'<td style="color: {sev_color}; font-weight: bold;">{html.escape(priority_label)}</td>'
+                    f"<td>{html.escape(str(site_name))}</td>"
+                    f"<td>{html.escape(score_text)}</td>"
+                    f"{classifier_cells}"
+                    "</tr>"
+                )
+            
+            if not rows:
+                continue
+            
+            # Determine header color based on worst severity in group
+            worst_sev = min(severity_rank.get(i.get('severity', 'info'), 3) for i in group_insights)
+            header_bg = {0: '#d32f2f', 1: '#e65100', 2: '#f57c00', 3: '#388e3c'}.get(worst_sev, '#455a64')
+            
+            table = (
+                f'<h4 style="margin: 15px 0 5px 0; color: {header_bg};">'
+                f'{html.escape(display_name)}</h4>'
+                f'<table class="insights-table" style="margin-bottom: 15px;">'
+                f'<thead><tr style="background-color: {header_bg};">'
+                f'{header_cols}'
+                f'</tr></thead>'
+                f'<tbody>'
+                + "".join(rows)
+                + '</tbody></table>'
+            )
+            tables_html.append(table)
+        
+        return "\n".join(tables_html)
+    
+    def _extract_score_display(self, insight: Dict) -> str:
+        """Extract a clean score display string from an insight."""
+        text = insight.get('text', '')
+        # Try to extract score value like "75.4%" or "-56.1 dBm (88.6%)"
+        if ':' in text:
+            # Get the part after the first colon, before the dash
+            score_part = text.split(':', 1)[1].strip()
+            if ' - ' in score_part:
+                score_part = score_part.split(' - ')[0].strip()
+            return score_part
+        # Fallback to metric_value
+        mv = insight.get('metric_value')
+        if mv is not None:
+            return f"{mv * 100:.1f}%"
+        return 'N/A'
     
     def _get_priority_action_text(self, severity: str) -> str:
         """Get action recommendations based on severity level."""

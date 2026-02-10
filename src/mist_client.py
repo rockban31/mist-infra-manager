@@ -131,13 +131,7 @@ class MistAPIClient:
             end_time = int(time.time())
             start_time = end_time - (hours * 3600)
             
-            # First, get list of available metrics
-            metrics_url = f"{self.BASE_URL}/sites/{site_id}/sle/site/{site_id}/metrics"
-            response = self.session.get(metrics_url)
-            response.raise_for_status()
-            available_metrics = response.json()
-            
-            # If specific metric requested, get its summary
+            # If specific metric requested, get its summary directly
             if metric:
                 summary_url = f"{self.BASE_URL}/sites/{site_id}/sle/site/{site_id}/metric/{metric}/summary"
                 params = {'start': start_time, 'end': end_time}
@@ -145,11 +139,14 @@ class MistAPIClient:
                 response.raise_for_status()
                 return response.json()
             
-            # Otherwise, return available metrics
-            return available_metrics
+            # Otherwise, get list of available metrics
+            metrics_url = f"{self.BASE_URL}/sites/{site_id}/sle/site/{site_id}/metrics"
+            response = self.session.get(metrics_url)
+            response.raise_for_status()
+            return response.json()
             
         except requests.exceptions.RequestException as e:
-            self.logger.debug(f"Failed to get SLE metrics: {e}")
+            self.logger.debug(f"Failed to get SLE metrics for {metric or 'all'}: {e}")
             return None
     
     def get_insights(self, site_id: str = None) -> List[Dict]:
